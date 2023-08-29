@@ -602,6 +602,7 @@ impl<L> Router<L> {
         self
     }
 
+    #[cfg(axum_router)]
     /// Convert this tonic `Router` into an axum `Router` consuming the tonic one.
     pub fn into_router(self) -> axum::Router {
         self.routes.into_router()

@@ -15,13 +15,22 @@ use std::{
 use tower::ServiceExt;
 use tower_service::Service;
 
+#[cfg(feature = "axum_router")]
+mod axum;
+#[cfg(feature = "axum_router")]
+type Router = axum::Router;
+#[cfg(not(feature = "axum_router"))]
+mod simple;
+#[cfg(not(feature = "axum_router"))]
+use simple::SimpleRouter as Router;
+
 /// A [`Service`] router.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct Routes {
-    router: axum::Router,
+    router: Router,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 /// Allows adding new services to routes by passing a mutable reference to this builder.
 pub struct RoutesBuilder {
     routes: Option<Routes>,
@@ -49,6 +58,7 @@ impl RoutesBuilder {
         self.routes.unwrap_or_default()
     }
 }
+
 impl Routes {
     /// Create a new routes with `svc` already added to it.
     pub fn new<S>(svc: S) -> Self
@@ -61,7 +71,7 @@ impl Routes {
         S::Future: Send + 'static,
         S::Error: Into<crate::Error> + Send,
     {
-        let router = axum::Router::new().fallback(unimplemented);
+        let router = Router::default();
         Self { router }.add_service(svc)
     }
 
@@ -76,31 +86,12 @@ impl Routes {
         S::Future: Send + 'static,
         S::Error: Into<crate::Error> + Send,
     {
-        let svc = svc.map_response(|res| res.map(axum::body::boxed));
-        self.router = self
+        // let svc = svc.map_response(|res| res.map(axum::body::boxed));
+        self
             .router
             .route_service(&format!("/{}/*rest", S::NAME), svc);
         self
     }
-
-    pub(crate) fn prepare(self) -> Self {
-        Self {
-            // this makes axum perform update some internals of the router that improves perf
-            // see https://docs.rs/axum/latest/axum/routing/struct.Router.html#a-note-about-performance
-            router: self.router.with_state(()),
-        }
-    }
-
-    /// Convert this `Routes` into an [`axum::Router`].
-    pub fn into_router(self) -> axum::Router {
-        self.router
-    }
-}
-
-async fn unimplemented() -> impl axum::response::IntoResponse {
-    let status = http::StatusCode::OK;
-    let headers = [("grpc-status", "12"), ("content-type", "application/grpc")];
-    (status, headers)
 }
 
 impl Service<Request<Body>> for Routes {
@@ -115,25 +106,5 @@ impl Service<Request<Body>> for Routes {
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
         RoutesFuture(self.router.call(req))
-    }
-}
-
-#[pin_project]
-pub struct RoutesFuture(#[pin] axum::routing::future::RouteFuture<Body, Infallible>);
-
-impl fmt::Debug for RoutesFuture {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("RoutesFuture").finish()
-    }
-}
-
-impl Future for RoutesFuture {
-    type Output = Result<Response<BoxBody>, crate::Error>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match futures_util::ready!(self.project().0.poll(cx)) {
-            Ok(res) => Ok(res.map(boxed)).into(),
-            Err(err) => match err {},
-        }
     }
 }
