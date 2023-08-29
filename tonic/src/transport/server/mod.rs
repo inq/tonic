@@ -602,6 +602,7 @@ impl<L> Router<L> {
         self
     }
 
+    #[cfg(axum_router)]
     /// Convert this tonic `Router` into an axum `Router` consuming the tonic one.
     pub fn into_router(self) -> axum::Router {
         self.routes.into_router()
@@ -625,7 +626,7 @@ impl<L> Router<L> {
             .map_err(super::Error::from_source)?;
         self.server
             .serve_with_shutdown::<_, _, future::Ready<()>, _, _, ResBody>(
-                self.routes.prepare(),
+                self.routes,
                 incoming,
                 None,
             )
@@ -654,7 +655,7 @@ impl<L> Router<L> {
         let incoming = TcpIncoming::new(addr, self.server.tcp_nodelay, self.server.tcp_keepalive)
             .map_err(super::Error::from_source)?;
         self.server
-            .serve_with_shutdown(self.routes.prepare(), incoming, Some(signal))
+            .serve_with_shutdown(self.routes, incoming, Some(signal))
             .await
     }
 
@@ -682,7 +683,7 @@ impl<L> Router<L> {
     {
         self.server
             .serve_with_shutdown::<_, _, future::Ready<()>, _, _, ResBody>(
-                self.routes.prepare(),
+                self.routes,
                 incoming,
                 None,
             )
@@ -716,7 +717,7 @@ impl<L> Router<L> {
         ResBody::Error: Into<crate::Error>,
     {
         self.server
-            .serve_with_shutdown(self.routes.prepare(), incoming, Some(signal))
+            .serve_with_shutdown(self.routes, incoming, Some(signal))
             .await
     }
 
@@ -730,7 +731,7 @@ impl<L> Router<L> {
         ResBody: http_body::Body<Data = Bytes> + Send + 'static,
         ResBody::Error: Into<crate::Error>,
     {
-        self.server.service_builder.service(self.routes.prepare())
+        self.server.service_builder.service(self.routes)
     }
 }
 
