@@ -1,4 +1,4 @@
-use crate::body::BoxBody;
+use crate::body::{BoxBody, LocalBoxBody, BoxBodyExt};
 use crate::metadata::MetadataMap;
 use base64::Engine as _;
 use bytes::Bytes;
@@ -584,7 +584,9 @@ impl Status {
 
     #[allow(clippy::wrong_self_convention)]
     /// Build an `http::Response` from the given `Status`.
-    pub fn to_http(self) -> http::Response<BoxBody> {
+    pub fn to_http<R>(self) -> http::Response<R>
+        where R: BoxBodyExt
+    {
         let (mut parts, _body) = http::Response::new(()).into_parts();
 
         parts.headers.insert(
@@ -594,7 +596,7 @@ impl Status {
 
         self.add_header(&mut parts.headers).unwrap();
 
-        http::Response::from_parts(parts, crate::body::empty_body())
+        http::Response::from_parts(parts, R::empty_body())
     }
 }
 

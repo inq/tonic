@@ -39,6 +39,7 @@ pub fn configure() -> Builder {
         include_file: None,
         emit_rerun_if_changed: std::env::var_os("CARGO").is_some(),
         disable_comments: HashSet::default(),
+        single_threaded: false,
         use_arc_self: false,
         generate_default_stubs: false,
     }
@@ -174,6 +175,7 @@ impl prost_build::ServiceGenerator for ServiceGenerator {
                 .compile_well_known_types(self.builder.compile_well_known_types)
                 .attributes(self.builder.server_attributes.clone())
                 .disable_comments(self.builder.disable_comments.clone())
+                .single_threaded(self.builder.single_threaded)
                 .use_arc_self(self.builder.use_arc_self)
                 .generate_default_stubs(self.builder.generate_default_stubs)
                 .generate_server(&service, &self.builder.proto_path);
@@ -250,6 +252,7 @@ pub struct Builder {
     pub(crate) include_file: Option<PathBuf>,
     pub(crate) emit_rerun_if_changed: bool,
     pub(crate) disable_comments: HashSet<String>,
+    pub(crate) single_threaded: bool,
     pub(crate) use_arc_self: bool,
     pub(crate) generate_default_stubs: bool,
 
@@ -458,6 +461,12 @@ impl Builder {
     /// Disable service and rpc comments emission.
     pub fn disable_comments(mut self, path: impl AsRef<str>) -> Self {
         self.disable_comments.insert(path.as_ref().to_string());
+        self
+    }
+
+    /// Support ?Sync trait for single-threaded use.
+    pub fn single_threaded(mut self, enable: bool) -> Self {
+        self.single_threaded = enable;
         self
     }
 

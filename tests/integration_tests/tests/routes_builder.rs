@@ -7,11 +7,13 @@ use integration_tests::pb::{
     test1_client, test1_server, test_client, test_server, Input, Input1, Output, Output1,
 };
 use tonic::codegen::BoxStream;
-use tonic::transport::server::RoutesBuilder;
+use tonic::server::NamedService;
+use tonic::transport::server::Routes;
 use tonic::{
     transport::{Endpoint, Server},
     Request, Response, Status,
 };
+use tower::util::BoxCloneService;
 
 #[tokio::test]
 async fn multiple_service_using_routes_builder() {
@@ -53,12 +55,14 @@ async fn multiple_service_using_routes_builder() {
     let svc2 = test1_server::Test1Server::new(Svc2);
 
     let (tx, rx) = oneshot::channel::<()>();
-    let mut routes_builder = RoutesBuilder::default();
-    routes_builder.add_service(svc1).add_service(svc2);
+    let mut routes_builder = Routes::default();
+    routes_builder
+        .add_service(&svc1.path(), BoxCloneService::new(svc1))
+        .add_service(&svc2.path(), BoxCloneService::new(svc2));
 
     let jh = tokio::spawn(async move {
         Server::builder()
-            .add_routes(routes_builder.routes())
+            .add_routes(routes_builder)
             .serve_with_shutdown("127.0.0.1:1400".parse().unwrap(), async { drop(rx.await) })
             .await
             .unwrap();

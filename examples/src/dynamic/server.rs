@@ -1,11 +1,16 @@
 use std::env;
-use tonic::{transport::server::RoutesBuilder, transport::Server, Request, Response, Status};
+use tonic::transport::server::Routes;
+use tonic::{
+    transport::{NamedService, Server},
+    Request, Response, Status,
+};
 
 use hello_world::greeter_server::{Greeter, GreeterServer};
 use hello_world::{HelloReply, HelloRequest};
 
 use echo::echo_server::{Echo, EchoServer};
 use echo::{EchoRequest, EchoResponse};
+use tower::util::BoxCloneService;
 
 pub mod hello_world {
     tonic::include_proto!("helloworld");
@@ -31,7 +36,7 @@ impl Echo for MyEcho {
     }
 }
 
-fn init_echo(args: &[String], builder: &mut RoutesBuilder) {
+fn init_echo(args: &[String], routes: &mut Routes) {
     let enabled = args
         .into_iter()
         .find(|arg| arg.as_str() == "echo")
@@ -39,7 +44,7 @@ fn init_echo(args: &[String], builder: &mut RoutesBuilder) {
     if enabled {
         println!("Adding Echo service...");
         let svc = EchoServer::new(MyEcho::default());
-        builder.add_service(svc);
+        routes.add_service(&svc.path(), BoxCloneService::new(svc));
     }
 }
 
@@ -61,7 +66,7 @@ impl Greeter for MyGreeter {
     }
 }
 
-fn init_greeter(args: &[String], builder: &mut RoutesBuilder) {
+fn init_greeter(args: &[String], routes: &mut Routes) {
     let enabled = args
         .into_iter()
         .find(|arg| arg.as_str() == "greeter")
@@ -70,14 +75,14 @@ fn init_greeter(args: &[String], builder: &mut RoutesBuilder) {
     if enabled {
         println!("Adding Greeter service...");
         let svc = GreeterServer::new(MyGreeter::default());
-        builder.add_service(svc);
+        routes.add_service(&svc.path(), BoxCloneService::new(svc));
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    let mut routes_builder = RoutesBuilder::default();
+    let mut routes_builder = Routes::default();
     init_greeter(&args, &mut routes_builder);
     init_echo(&args, &mut routes_builder);
 
@@ -86,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Grpc server listening on {}", addr);
 
     Server::builder()
-        .add_routes(routes_builder.routes())
+        .add_routes(routes_builder)
         .serve(addr)
         .await?;
 

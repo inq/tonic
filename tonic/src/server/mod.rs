@@ -23,4 +23,8 @@ pub trait NamedService {
     ///
     /// [here]: https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md#requests
     const NAME: &'static str;
+
+    fn path(&self) -> String {
+        format!("/{}/*rest", Self::NAME)
+    }
 }
