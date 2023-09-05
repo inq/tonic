@@ -9,7 +9,7 @@ version = "0.1.0"
 [dependencies]
 tokio-stream = "0.1"
 prost = "0.12"
-tonic = {path = "../../tonic", features = ["gzip"]}
+tonic = {path = "../../tonic", features = ["gzip", "current-thread"]}
 
 [build-dependencies]
 tonic-build = {path = "../../tonic-build" }

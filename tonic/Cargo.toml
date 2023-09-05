@@ -42,6 +42,7 @@ transport = [
   "dep:hyper-timeout",
   "dep:matchit",
 ]
+current-thread = []
 channel = []
 
 # [[bench]]

@@ -1,7 +1,7 @@
 use std::env;
 use tonic::transport::server::Routes;
 use tonic::{
-    transport::{NamedService, Server},
+    transport::Server,
     Request, Response, Status,
 };
 
@@ -10,7 +10,6 @@ use hello_world::{HelloReply, HelloRequest};
 
 use echo::echo_server::{Echo, EchoServer};
 use echo::{EchoRequest, EchoResponse};
-use tower::util::BoxCloneService;
 
 pub mod hello_world {
     tonic::include_proto!("helloworld");
@@ -44,7 +43,7 @@ fn init_echo(args: &[String], routes: &mut Routes) {
     if enabled {
         println!("Adding Echo service...");
         let svc = EchoServer::new(MyEcho::default());
-        routes.add_service(&svc.path(), BoxCloneService::new(svc));
+        routes.add_service(svc);
     }
 }
 
@@ -75,7 +74,7 @@ fn init_greeter(args: &[String], routes: &mut Routes) {
     if enabled {
         println!("Adding Greeter service...");
         let svc = GreeterServer::new(MyGreeter::default());
-        routes.add_service(&svc.path(), BoxCloneService::new(svc));
+        routes.add_service(svc);
     }
 }
 

@@ -121,10 +121,11 @@ impl<T> Streaming<T> {
         Self {
             decoder: Box::new(decoder),
             inner: StreamingInner {
-                body: body
-                    .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
-                    .map_err(|err| Status::map_error(err.into()))
-                    .boxed_unsync(),
+                body: BoxBody::new(
+                    body
+                        .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
+                        .map_err(|err| Status::map_error(err.into()))
+                ),
                 state: State::ReadHeader,
                 direction,
                 buf: BytesMut::with_capacity(BUFFER_SIZE),
@@ -416,5 +417,5 @@ impl<T> fmt::Debug for Streaming<T> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "current-thread")))]
 static_assertions::assert_impl_all!(Streaming<()>: Send);

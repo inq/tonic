@@ -24,7 +24,6 @@ members = [
   "tests/compression",
   "tonic-web/tests/integration",
   "tests/service_named_result",
-  "tests/single_threaded",
   "tests/use_arc_self",
   "tests/default_stubs",
 ]

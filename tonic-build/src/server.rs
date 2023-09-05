@@ -69,6 +69,11 @@ pub(crate) fn generate_internal<T: Service>(
     } else {
         quote!(BoxBody)
     };
+    let empty_body_fn = if single_threaded {
+        quote!(local_empty_body)
+    } else {
+        quote!(empty_body)
+    };
 
     let configure_compression_methods = quote! {
         /// Enable decompressing requests with the given encoding.
@@ -187,7 +192,7 @@ pub(crate) fn generate_internal<T: Service>(
                                .status(200)
                                .header("grpc-status", "12")
                                .header("content-type", "application/grpc")
-                               .body(tonic::body::#box_body_type::empty_body())
+                               .body(tonic::body::#empty_body_fn())
                                .unwrap())
                         }),
                     }
@@ -513,11 +518,6 @@ fn generate_unary<T: Method>(
     } else {
         quote!(BoxFuture)
     };
-    let with_grpc_executor = if single_threaded {
-        quote!(.with_local_executor())
-    } else {
-        quote!()
-    };
 
     let inner_arg = if use_arc_self {
         quote!(inner)
@@ -553,7 +553,6 @@ fn generate_unary<T: Method>(
             let codec = #codec_name::default();
 
             let mut grpc = tonic::server::Grpc::new(codec)
-                #with_grpc_executor
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings)
                 .apply_max_message_size_config(max_decoding_message_size, max_encoding_message_size);
 
@@ -591,11 +590,6 @@ fn generate_server_streaming<T: Method>(
         quote!(LocalBoxStream)
     } else {
         quote!(BoxStream)
-    };
-    let with_grpc_executor = if single_threaded {
-        quote!(.with_local_executor())
-    } else {
-        quote!()
     };
 
     let response_stream = if !generate_default_stubs {
@@ -640,7 +634,6 @@ fn generate_server_streaming<T: Method>(
             let codec = #codec_name::default();
 
             let mut grpc = tonic::server::Grpc::new(codec)
-                #with_grpc_executor
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings)
                 .apply_max_message_size_config(max_decoding_message_size, max_encoding_message_size);
 
@@ -675,11 +668,6 @@ fn generate_client_streaming<T: Method>(
         quote!(LocalBoxFuture)
     } else {
         quote!(BoxFuture)
-    };
-    let with_grpc_executor = if single_threaded {
-        quote!(.with_local_executor())
-    } else {
-        quote!()
     };
 
     let inner_arg = if use_arc_self {
@@ -717,7 +705,6 @@ fn generate_client_streaming<T: Method>(
             let codec = #codec_name::default();
 
             let mut grpc = tonic::server::Grpc::new(codec)
-                #with_grpc_executor
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings)
                 .apply_max_message_size_config(max_decoding_message_size, max_encoding_message_size);
 
@@ -760,11 +747,6 @@ fn generate_streaming<T: Method>(
         quote!(LocalBoxStream)
     } else {
         quote!(BoxStream)
-    };
-    let init_grpc = if single_threaded {
-        quote!(tonic::server::Grpc::new(codec).with_local_executor())
-    } else {
-        quote!(tonic::server::Grpc::new(codec))
     };
 
     let response_stream = if !generate_default_stubs {
@@ -809,7 +791,7 @@ fn generate_streaming<T: Method>(
             let method = #service_ident(inner);
             let codec = #codec_name::default();
 
-            let mut grpc = #init_grpc
+            let mut grpc = tonic::server::Grpc::new(codec)
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings)
                 .apply_max_message_size_config(max_decoding_message_size, max_encoding_message_size);
 

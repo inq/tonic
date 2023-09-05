@@ -6,7 +6,7 @@ use http::{header, HeaderMap, HeaderValue, Method, Request, Response, StatusCode
 use hyper::Body;
 use pin_project::pin_project;
 use tonic::{
-    body::{BoxBodyExt, BoxBody},
+    body::BoxBody,
     server::NamedService,
 };
 use tower_service::Service;
@@ -17,6 +17,11 @@ use crate::call::{Encoding, GrpcWebCall};
 use crate::BoxError;
 
 const GRPC: &str = "application/grpc";
+
+#[cfg(not(feature = "current-thread"))]
+use tonic::body::empty_body;
+#[cfg(feature = "current-thread")]
+use tonic::body::local_empty_body as empty_body;
 
 /// Service implementing the grpc-web protocol.
 #[derive(Debug, Clone)]
@@ -58,7 +63,7 @@ where
                 res: Some(
                     Response::builder()
                         .status(status)
-                        .body(BoxBodyExt::empty_body())
+                        .body(empty_body())
                         .unwrap(),
                 ),
             },
@@ -256,7 +261,7 @@ mod tests {
         }
 
         fn call(&mut self, _: Request<Body>) -> Self::Future {
-            Box::pin(async { Ok(Response::new(BoxBodyExt::empty_body())) })
+            Box::pin(async { Ok(Response::new(empty_body())) })
         }
     }
 

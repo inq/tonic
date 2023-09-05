@@ -1,4 +1,3 @@
-use crate::body::BoxBodyExt;
 use crate::metadata::MetadataMap;
 use base64::Engine as _;
 use bytes::Bytes;
@@ -6,6 +5,16 @@ use http::header::{HeaderMap, HeaderValue};
 use percent_encoding::{percent_decode, percent_encode, AsciiSet, CONTROLS};
 use std::{borrow::Cow, error::Error, fmt, sync::Arc};
 use tracing::{debug, trace, warn};
+
+#[cfg(not(feature = "current-thread"))]
+type BoxBody = http_body::combinators::UnsyncBoxBody<Bytes, crate::Status>;
+#[cfg(feature = "current-thread")]
+type BoxBody = crate::body::UnsendBoxBody<Bytes, crate::Status>;
+
+#[cfg(not(feature = "current-thread"))]
+use crate::body::empty_body;
+#[cfg(feature = "current-thread")]
+use crate::body::local_empty_body as empty_body;
 
 const ENCODING_SET: &AsciiSet = &CONTROLS
     .add(b' ')
@@ -584,8 +593,7 @@ impl Status {
 
     #[allow(clippy::wrong_self_convention)]
     /// Build an `http::Response` from the given `Status`.
-    pub fn to_http<R>(self) -> http::Response<R>
-        where R: BoxBodyExt
+    pub fn to_http(self) -> http::Response<BoxBody>
     {
         let (mut parts, _body) = http::Response::new(()).into_parts();
 
@@ -596,7 +604,7 @@ impl Status {
 
         self.add_header(&mut parts.headers).unwrap();
 
-        http::Response::from_parts(parts, R::empty_body())
+        http::Response::from_parts(parts, empty_body())
     }
 }
 

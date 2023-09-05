@@ -428,7 +428,7 @@ pub mod server_reflection_server {
                                 .status(200)
                                 .header("grpc-status", "12")
                                 .header("content-type", "application/grpc")
-                                .body(tonic::body::BoxBody::empty_body())
+                                .body(tonic::body::empty_body())
                                 .unwrap(),
                         )
                     })

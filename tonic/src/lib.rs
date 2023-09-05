@@ -111,8 +111,6 @@ mod request;
 mod response;
 mod status;
 mod util;
-mod executors;
-pub use executors::{LocalExecutor, MultiThreadExecutor};
 
 /// A re-export of [`async-trait`](https://docs.rs/async-trait) for use with codegen.
 #[cfg(feature = "codegen")]
