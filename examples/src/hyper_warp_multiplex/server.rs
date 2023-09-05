@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Server::bind(&addr)
         .serve(make_service_fn(move |_| {
             let greeter = GreeterServer::new(MyGreeter::default());
-            let echo = EchoServer::new(MyEcho::default());
+            let echo = EchoServer::new(MyEcho);
 
             let mut tonic = TonicServer::builder()
                 .add_service(greeter)

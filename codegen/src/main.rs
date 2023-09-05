@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     // tonic-health
@@ -45,7 +45,7 @@ fn main() {
 }
 
 fn codegen(
-    root_dir: &PathBuf,
+    root_dir: &Path,
     iface_files: &[&str],
     include_dirs: &[&str],
     out_dir: &PathBuf,
@@ -59,12 +59,12 @@ fn codegen(
         .unwrap();
 
     let iface_files: Vec<PathBuf> = iface_files
-        .into_iter()
+        .iter()
         .map(|&path| root_dir.join(path))
         .collect();
 
     let include_dirs: Vec<PathBuf> = include_dirs
-        .into_iter()
+        .iter()
         .map(|&path| root_dir.join(path))
         .collect();
     let out_dir = root_dir.join(out_dir);

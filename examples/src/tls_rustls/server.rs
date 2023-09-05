@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_single_cert(certs, key)?;
     tls.alpn_protocols = vec![b"h2".to_vec()];
 
-    let server = EchoServer::default();
+    let server = EchoServer;
 
     let svc = Server::builder()
         .add_service(pb::echo_server::EchoServer::new(server))

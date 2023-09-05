@@ -91,7 +91,7 @@ mod tests {
 
     #[tokio::test]
     async fn decode() {
-        let decoder = MockDecoder::default();
+        let decoder = MockDecoder;
 
         let msg = vec![0u8; LEN];
 
@@ -117,7 +117,7 @@ mod tests {
 
     #[tokio::test]
     async fn decode_max_message_size_exceeded() {
-        let decoder = MockDecoder::default();
+        let decoder = MockDecoder;
 
         let msg = vec![0u8; MAX_MESSAGE_SIZE + 1];
 
@@ -150,7 +150,7 @@ mod tests {
 
     #[tokio::test]
     async fn encode() {
-        let encoder = MockEncoder::default();
+        let encoder = MockEncoder;
 
         let msg = Vec::from(&[0u8; 1024][..]);
 
@@ -174,7 +174,7 @@ mod tests {
 
     #[tokio::test]
     async fn encode_max_message_size_exceeded() {
-        let encoder = MockEncoder::default();
+        let encoder = MockEncoder;
 
         let msg = vec![0u8; MAX_MESSAGE_SIZE + 1];
 
@@ -208,7 +208,7 @@ mod tests {
     #[cfg(not(target_family = "windows"))]
     #[tokio::test]
     async fn encode_too_big() {
-        let encoder = MockEncoder::default();
+        let encoder = MockEncoder;
 
         let msg = vec![0u8; u32::MAX as usize + 1];
 
@@ -326,7 +326,7 @@ mod tests {
                 }
             }
 
-            #[allow(clippy::drop_ref)]
+            #[allow(dropping_references)]
             fn poll_trailers(
                 self: Pin<&mut Self>,
                 _cx: &mut Context<'_>,

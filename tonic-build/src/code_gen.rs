@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use proc_macro2::TokenStream;
 
+use crate::server::GenerateInternalParams;
 use crate::{Attributes, Service};
 
 /// Builder for the generic code generation of server and clients.
@@ -92,16 +93,16 @@ impl CodeGenBuilder {
     /// This takes some `Service` and will generate a `TokenStream` that contains
     /// a public module with the generated client.
     pub fn generate_server(&self, service: &impl Service, proto_path: &str) -> TokenStream {
-        crate::server::generate_internal(
+        crate::server::generate_internal(GenerateInternalParams {
             service,
-            self.emit_package,
+            emit_package: self.emit_package,
             proto_path,
-            self.compile_well_known_types,
-            &self.attributes,
-            &self.disable_comments,
-            self.use_arc_self,
-            self.generate_default_stubs,
-        )
+            compile_well_known_types: self.compile_well_known_types,
+            attributes: &self.attributes,
+            disable_comments: &self.disable_comments,
+            use_arc_self: self.use_arc_self,
+            generate_default_stubs: self.generate_default_stubs,
+        })
     }
 }
 

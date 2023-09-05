@@ -9,15 +9,28 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{Ident, Lit, LitStr};
 
+pub(crate) struct GenerateInternalParams<'a, T: Service> {
+    pub(crate) service: &'a T,
+    pub(crate) emit_package: bool,
+    pub(crate) proto_path: &'a str,
+    pub(crate) compile_well_known_types: bool,
+    pub(crate) attributes: &'a Attributes,
+    pub(crate) disable_comments: &'a HashSet<String>,
+    pub(crate) use_arc_self: bool,
+    pub(crate) generate_default_stubs: bool,
+}
+
 pub(crate) fn generate_internal<T: Service>(
-    service: &T,
-    emit_package: bool,
-    proto_path: &str,
-    compile_well_known_types: bool,
-    attributes: &Attributes,
-    disable_comments: &HashSet<String>,
-    use_arc_self: bool,
-    generate_default_stubs: bool,
+    GenerateInternalParams {
+        service,
+        emit_package,
+        proto_path,
+        compile_well_known_types,
+        attributes,
+        disable_comments,
+        use_arc_self,
+        generate_default_stubs,
+    }: GenerateInternalParams<'_, T>,
 ) -> TokenStream {
     let methods = generate_methods(
         service,
@@ -31,16 +44,16 @@ pub(crate) fn generate_internal<T: Service>(
     let server_service = quote::format_ident!("{}Server", service.name());
     let server_trait = quote::format_ident!("{}", service.name());
     let server_mod = quote::format_ident!("{}_server", naive_snake_case(service.name()));
-    let generated_trait = generate_trait(
+    let generated_trait = generate_trait(GenerateTraitParams {
         service,
         emit_package,
         proto_path,
         compile_well_known_types,
-        server_trait.clone(),
+        server_trait: server_trait.clone(),
         disable_comments,
         use_arc_self,
         generate_default_stubs,
-    );
+    });
     let package = if emit_package { service.package() } else { "" };
     // Transport based implementations
     let service_name = format_service_name(service, emit_package);
@@ -209,15 +222,28 @@ pub(crate) fn generate_internal<T: Service>(
     }
 }
 
-fn generate_trait<T: Service>(
-    service: &T,
+struct GenerateTraitParams<'a, T: Service> {
+    service: &'a T,
     emit_package: bool,
-    proto_path: &str,
+    proto_path: &'a str,
     compile_well_known_types: bool,
     server_trait: Ident,
-    disable_comments: &HashSet<String>,
+    disable_comments: &'a HashSet<String>,
     use_arc_self: bool,
     generate_default_stubs: bool,
+}
+
+fn generate_trait<T: Service>(
+    GenerateTraitParams {
+        service,
+        emit_package,
+        proto_path,
+        compile_well_known_types,
+        server_trait,
+        disable_comments,
+        use_arc_self,
+        generate_default_stubs,
+    }: GenerateTraitParams<'_, T>,
 ) -> TokenStream {
     let methods = generate_trait_methods(
         service,
