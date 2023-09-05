@@ -71,10 +71,6 @@ async-trait = {version = "0.1.13", optional = true}
 h2 = {version = "0.3.17", optional = true}
 hyper = {version = "0.14.14", features = ["full"], optional = true}
 
-http-body1 = {package="http-body", version = "=1.0.0-rc.2"}
-http-body-util = "=0.1.0-rc.3"
-hyper1 = { package = "hyper", version = "=1.0.0-rc.4", features = ["full"] }
-
 hyper-timeout = {version = "0.4", optional = true}
 tokio-stream = "0.1"
 tower = {version = "0.4.7", default-features = false, features = ["balance", "buffer", "discover", "limit", "load", "make", "timeout", "util"], optional = true}

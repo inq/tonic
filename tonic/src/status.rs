@@ -1,4 +1,4 @@
-use crate::body::{BoxBody, LocalBoxBody, BoxBodyExt};
+use crate::body::BoxBodyExt;
 use crate::metadata::MetadataMap;
 use base64::Engine as _;
 use bytes::Bytes;

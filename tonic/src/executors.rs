@@ -4,47 +4,14 @@ use std::future::Future;
 use bytes::Bytes;
 use http_body::combinators::UnsyncBoxBody;
 use hyper::Body;
-use tower::util::BoxService;
+use tower::util::{BoxService, UnsyncBoxService};
 use tower_service::Service;
 
 use crate::body::{BoxBody, LocalBoxBody, LocalBoxHttpBody, UnsendBoxBody};
 use crate::body::BoxBodyExt;
 use crate::server::NamedService;
-use crate::util::{LocalBoxCloneService, LocalBoxService};
+use crate::util::LocalBoxCloneService;
 use http::{Response, Request};
-
-pub trait ResBodyConstraint<ResBody> {
-    fn hello();
-}
-
-impl<ResBody> ResBodyConstraint<ResBody> for LocalExecutor
-where ResBody: http_body::Body<Data = Bytes> + 'static,
-      ResBody::Error: Into<crate::Error> {
-    fn hello() {
-        panic!("gogo");
-    }
-}
-
-impl<ResBody> ResBodyConstraint<ResBody> for MultiThreadExecutor
-where ResBody: http_body::Body<Data = Bytes> + Copy + Send + 'static,
-      ResBody::Error: Into<crate::Error> {
-    fn hello() {
-        panic!("bybu");
-    }
-
-}
-
-pub trait ResBodddy {
-
-}
-
-impl<Resbody> ResBodddy for (MultiThreadExecutor, Resbody)
-    where Resbody: http_body::Body<Data = Bytes> + Copy + Send + 'static,
-          Resbody::Error: Into<crate::Error>
-{
-
-}
-
 
 pub trait Executor<F, R>: Clone {
     type BoxBody: BoxBodyExt;
@@ -84,14 +51,14 @@ where
     }
 }
 
-pub trait MakeBoxBody<F, ResBody>
+pub trait MakeBoxBody<ResBody>
 {
     type BoxBody;
 
     fn make_box_body(body: ResBody) -> Self::BoxBody;
 }
 
-pub trait MakeBoxServiceLayer<S, ResBody>: MakeBoxBody<S::Future, ResBody> + Clone where
+pub trait MakeBoxServiceLayer<S, ResBody>: MakeBoxBody<ResBody> + Clone where
     S: Service<Request<Body>, Response = Response<ResBody>>,
     ResBody: http_body::Body<Data = Bytes>,
 {
@@ -99,11 +66,10 @@ pub trait MakeBoxServiceLayer<S, ResBody>: MakeBoxBody<S::Future, ResBody> + Clo
     type BoxHttpBody: http_body::Body;
 }
 
-impl<F, ResBody> MakeBoxBody<F, ResBody> for LocalExecutor
+impl<ResBody> MakeBoxBody<ResBody> for LocalExecutor
 where
     ResBody: http_body::Body<Data = Bytes> + 'static,
     ResBody::Error: Into<crate::Error>,
-    F: 'static,
 {
     type BoxBody = UnsendBoxBody<Bytes, crate::Error>;
 
@@ -119,15 +85,14 @@ where
     ResBody: http_body::Body<Data = Bytes> + 'static,
     ResBody::Error: Into<crate::Error>
 {
-    type BoxService = LocalBoxService<Request<Body>, Response<Self::BoxHttpBody>, crate::Error>;
+    type BoxService = UnsyncBoxService<Request<Body>, Response<Self::BoxHttpBody>, crate::Error>;
     type BoxHttpBody = LocalBoxHttpBody;
 }
 
-impl<F, ResBody> MakeBoxBody<F, ResBody> for MultiThreadExecutor
+impl<ResBody> MakeBoxBody<ResBody> for MultiThreadExecutor
 where
     ResBody: http_body::Body<Data = Bytes> + 'static + Send,
     ResBody::Error: Into<crate::Error>,
-    F: 'static + Send,
 {
     type BoxBody = UnsyncBoxBody<Bytes, crate::Error>;
 
@@ -150,7 +115,6 @@ where
 
 impl<F> Executor<F, Response<LocalBoxBody>> for LocalExecutor
 where F: Future + 'static {
-//    R: http_body::Body<Data = bytes::Bytes, Error = crate::Status> + 'static {
     type BoxBody = LocalBoxBody;
     type BoxCloneService = LocalBoxCloneService<Request<Body>, Response<LocalBoxBody>, Infallible>;
 
@@ -167,7 +131,6 @@ where F: Future + 'static {
 
 impl<F> Executor<F, Response<BoxBody>> for MultiThreadExecutor
 where F: Future + Send + 'static {
-//    R: http_body::Body<Data = bytes::Bytes, Error = crate::Status> + Send + 'static {
     type BoxBody = BoxBody;
     type BoxCloneService = tower::util::BoxCloneService<Request<Body>, Response<BoxBody>, Infallible>;
 

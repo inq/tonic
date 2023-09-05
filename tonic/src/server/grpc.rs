@@ -11,6 +11,7 @@ use crate::{
 };
 use http_body::Body;
 use std::fmt;
+use std::marker::PhantomData;
 use tokio_stream::{Stream, StreamExt};
 
 macro_rules! t {
@@ -42,7 +43,7 @@ pub struct Grpc<T, Ex = MultiThreadExecutor> {
     /// Limits the maximum size of an encoded message.
     max_encoding_message_size: Option<usize>,
     /// Executor
-    exec: Ex,
+    _marker: PhantomData<Ex>,
 }
 
 impl<T> Grpc<T>
@@ -57,7 +58,7 @@ where
             send_compression_encodings: EnabledCompressionEncodings::default(),
             max_decoding_message_size: None,
             max_encoding_message_size: None,
-            exec: Default::default(),
+            _marker: PhantomData,
         }
     }
 
@@ -69,7 +70,7 @@ where
             send_compression_encodings: self.send_compression_encodings,
             max_decoding_message_size: self.max_decoding_message_size,
             max_encoding_message_size: self.max_encoding_message_size,
-            exec: LocalExecutor,
+            _marker: PhantomData,
         }
     }
 }

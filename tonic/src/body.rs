@@ -11,15 +11,11 @@ use tower::util::BoxCloneService;
 
 use crate::util::LocalBoxCloneService;
 
-pub fn empty_body() -> BoxBody {
-    http_body::Empty::new()
-        .map_err(|err| match err {})
-        .boxed_unsync()
-}
-
+/// An extention for BoxBody
 pub trait BoxBodyExt: Body<Data = bytes::Bytes, Error = crate::Status> + 'static {
     type BoxCloneService;
 
+    /// Generate an empty `BoxBody`
     fn empty_body() -> Self;
 }
 
@@ -35,11 +31,11 @@ where
     body.map_err(crate::Status::map_error).boxed_unsync()
 }
 
-pub trait IntoBoxBodyExt<T: BoxBodyExt> {
+pub trait IntoBoxBody<T: BoxBodyExt> {
     fn into_box_body(self) -> T;
 }
 
-impl<B> IntoBoxBodyExt<BoxBody> for B
+impl<B> IntoBoxBody<BoxBody> for B
 where
     B: http_body::Body<Data = bytes::Bytes, Error = crate::Status> + Send + 'static,
 {
@@ -124,17 +120,6 @@ where
     }
 }
 
-/// Convert a [`http_body::Body`] into a [`LocalBoxBody`].
-pub(crate) fn local_boxed<B>(body: B) -> LocalBoxBody
-where
-    B: http_body::Body<Data = bytes::Bytes> + Send + 'static,
-    B::Error: Into<crate::Error>,
-{
-    LocalBoxBody::new(
-        body.map_err(crate::Status::map_error)
-    )
-}
-
 /// Create an empty `BoxBody`
 impl BoxBodyExt for LocalBoxBody {
     type BoxCloneService = LocalBoxCloneService<Request<hyper::Body>, Response<Self>, Infallible>;
@@ -147,7 +132,7 @@ impl BoxBodyExt for LocalBoxBody {
     }
 }
 
-impl<B> IntoBoxBodyExt<LocalBoxBody> for B
+impl<B> IntoBoxBody<LocalBoxBody> for B
 where
     B: http_body::Body<Data = bytes::Bytes, Error = crate::Status> + 'static,
 {

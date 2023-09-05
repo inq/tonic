@@ -11,20 +11,17 @@ mod unix;
 
 pub use super::service::Routes;
 
-use crate::service::interceptor::ResponseFuture;
-use crate::{codegen::BoxBodyExt, executors::LocalExecutor};
-use crate::executors::{Executor, MultiThreadExecutor, MakeBoxServiceLayer, MakeBoxBody, ResBodyConstraint};
+use crate::executors::LocalExecutor;
+use crate::executors::{Executor, MultiThreadExecutor, MakeBoxServiceLayer, MakeBoxBody};
 pub use crate::server::NamedService;
 pub use conn::{Connected, TcpConnectInfo};
 use hyper::server::conn::Http;
-use hyper1::service::HttpService;
 #[cfg(feature = "tls")]
 pub use tls::ServerTlsConfig;
 
 #[cfg(feature = "tls")]
 pub use conn::TlsConnectInfo;
 use tower::limit::ConcurrencyLimit;
-use tower::util::MapRequest;
 
 #[cfg(feature = "tls")]
 use super::service::TlsAcceptor;
@@ -40,12 +37,11 @@ pub(crate) use tokio_rustls::server::TlsStream;
 #[cfg(feature = "tls")]
 use crate::transport::Error;
 
-use self::recover_error::{RecoverError, MaybeEmptyBody};
+use self::recover_error::RecoverError;
 use super::service::{GrpcTimeout, ServerIo};
-use crate::body::{BoxBody, LocalBoxBody, UnsendBoxBody};
+use crate::body::{BoxBody, LocalBoxBody};
 use bytes::Bytes;
 use http::{Request, Response};
-use http_body::Body as _;
 use hyper::{server::accept, Body};
 use pin_project::pin_project;
 use std::{
@@ -69,8 +65,6 @@ use tower::{
     Service, ServiceBuilder,
 };
 
-type BoxHttpBody = http_body::combinators::UnsyncBoxBody<Bytes, crate::Error>;
-type BoxService = tower::util::BoxService<Request<Body>, Response<BoxHttpBody>, crate::Error>;
 type TraceInterceptor = Arc<dyn Fn(&http::Request<()>) -> tracing::Span + Send + Sync + 'static>;
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
@@ -561,6 +555,11 @@ impl<Ex, S, L> Router<Ex, S, L> {
         self
     }
 
+    /// Convert this tonic `Router` into a `Service` consuming self.
+    pub fn into_router(self) -> Routes<S> {
+        self.routes
+    }
+
     /// Create a tower service out of a router.
     pub fn into_service<ResBody>(self) -> L::Service
     where
@@ -862,7 +861,7 @@ where
     ResBody: http_body::Body<Data = Bytes>,
     F: Future<Output = Result<Response<ResBody>, E>>,
     E: Into<crate::Error>,
-    Ex: MakeBoxBody<F, ResBody>,
+    Ex: MakeBoxBody<ResBody>,
 {
     type Output = Result<Response<Ex::BoxBody>, crate::Error>;
 
@@ -895,8 +894,7 @@ where
     ResBody: http_body::Body<Data = Bytes>,
     S: Service<Request<Body>, Response = Response<ResBody>> + Clone,
     IO: Connected,
-    Ex: MakeBoxServiceLayer<S, ResBody>,
-//    Ex: MakeBoxServiceLayer<RecoverError<Either<ConcurrencyLimit<GrpcTimeout<S>>, GrpcTimeout<S>>>, ResBody>,
+//    Ex: MakeBoxServiceLayer<S, ResBody>,
 {
     type Response = Svc<RecoverError<Either<ConcurrencyLimit<GrpcTimeout<S>>, GrpcTimeout<S>>>, IO::ConnectInfo, Ex>;
     type Error = crate::Error;

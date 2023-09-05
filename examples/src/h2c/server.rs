@@ -49,6 +49,7 @@ mod h2c {
     use std::pin::Pin;
 
     use http::{Request, Response};
+    use http_body::combinators::UnsyncBoxBody;
     use hyper::Body;
     use tower::Service;
 
@@ -61,7 +62,7 @@ mod h2c {
 
     impl<S> Service<Request<Body>> for H2c<S>
     where
-        S: Service<Request<Body>, Response = Response<tonic::transport::AxumBoxBody>>
+        S: Service<Request<Body>, Response = Response<UnsyncBoxBody<bytes::Bytes, tonic::Status>>>
             + Clone
             + Send
             + 'static,

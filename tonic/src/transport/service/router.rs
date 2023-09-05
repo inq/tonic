@@ -1,19 +1,12 @@
 use crate::body::LocalBoxBody;
 use crate::codegen::{BoxBodyExt, BoxFuture, LocalBoxFuture};
-use crate::{
-    body::BoxBody,
-    server::NamedService,
-};
+use crate::body::BoxBody;
 use http::{Request, Response};
 use hyper::Body;
-use pin_project::pin_project;
-use std::marker::PhantomData;
 use std::{
     convert::Infallible,
     fmt,
-    future::Future,
-    pin::Pin,
-    task::{ready, Context, Poll},
+    task::{Context, Poll},
 };
 use tower_service::Service;
 
