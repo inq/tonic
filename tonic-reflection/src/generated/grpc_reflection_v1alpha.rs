@@ -162,6 +162,17 @@ pub mod server_reflection_client {
     pub struct ServerReflectionClient<T> {
         inner: tonic::client::Grpc<T>,
     }
+    impl ServerReflectionClient<tonic::transport::Channel> {
+        /// Attempt to create a new client by connecting to a given endpoint.
+        pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
+        {
+            let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
+            Ok(Self::new(conn))
+        }
+    }
     impl<T> ServerReflectionClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
@@ -377,7 +388,13 @@ pub mod server_reflection_server {
                     for ServerReflectionInfoSvc<T> {
                         type Response = super::ServerReflectionResponse;
                         type ResponseStream = T::ServerReflectionInfoStream;
+                        #[cfg(not(feature = "current-thread"))]
                         type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        #[cfg(feature = "current-thread")]
+                        type Future = LocalBoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;

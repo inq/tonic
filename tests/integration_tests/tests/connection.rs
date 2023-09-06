@@ -7,9 +7,15 @@ use tonic::{
     Code, Request, Response, Status,
 };
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 struct Svc(Arc<Mutex<Option<oneshot::Sender<()>>>>);
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl test_server::Test for Svc {
     async fn unary_call(&self, _: Request<Input>) -> Result<Response<Output>, Status> {
         let mut l = self.0.lock().unwrap();
@@ -32,7 +38,7 @@ async fn connect_returns_err_via_call_after_connected() {
     let sender = Arc::new(Mutex::new(Some(tx)));
     let svc = test_server::TestServer::new(Svc(sender));
 
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1338".parse().unwrap(), async { drop(rx.await) })
@@ -71,7 +77,7 @@ async fn connect_lazy_reconnects_after_first_failure() {
     client.unary_call(Request::new(Input {})).await.unwrap_err();
 
     // Start the server now, second call should succeed
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1339".parse().unwrap(), async { drop(rx.await) })

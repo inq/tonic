@@ -32,6 +32,11 @@ pub(crate) fn generate_internal<T: Service>(
     let package = if emit_package { service.package() } else { "" };
     let service_name = format_service_name(service, emit_package);
 
+    #[cfg(not(feature = "current-thread"))]
+    let extra_trait = quote!(Send + 'static);
+    #[cfg(feature = "current-thread")]
+    let extra_trait = quote!('static);
+
     let service_doc = if disable_comments.contains(&service_name) {
         TokenStream::new()
     } else {
@@ -68,7 +73,7 @@ pub(crate) fn generate_internal<T: Service>(
             where
                 T: tonic::client::GrpcService<tonic::body::BoxBody>,
                 T::Error: Into<StdError>,
-                T::ResponseBody: Body<Data = Bytes> + Send  + 'static,
+                T::ResponseBody: Body<Data = Bytes> + #extra_trait,
                 <T::ResponseBody as Body>::Error: Into<StdError> + Send,
             {
                 pub fn new(inner: T) -> Self {

@@ -23,6 +23,15 @@ where
     BoxBody::new(body.map_err(crate::Status::map_error))
 }
 
+/// Convert a [`http_body::Body`] into a [`LocalBoxBody`].
+pub(crate) fn boxed_local<B>(body: B) -> LocalBoxBody
+where
+    B: http_body::Body<Data = bytes::Bytes> + 'static,
+    B::Error: Into<crate::Error>,
+{
+    LocalBoxBody::new(body.map_err(crate::Status::map_error))
+}
+
 pub fn empty_body() -> BoxBody {
     http_body::Empty::new()
         .map_err(|err| match err {})

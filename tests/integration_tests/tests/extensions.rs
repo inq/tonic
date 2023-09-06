@@ -1,7 +1,6 @@
 use hyper::{Body, Request as HyperRequest, Response as HyperResponse};
 use integration_tests::{
     pb::{test_client, test_server, Input, Output},
-    BoxFuture,
 };
 use std::{
     task::{Context, Poll},
@@ -9,11 +8,25 @@ use std::{
 };
 use tokio::sync::oneshot;
 use tonic::{
-    body::BoxBody,
     transport::{Endpoint, NamedService, Server},
     Request, Response, Status,
 };
 use tower_service::Service;
+
+#[cfg(not(feature = "current-thread"))]
+use integration_tests::BoxFuture;
+#[cfg(feature = "current-thread")]
+use integration_tests::LocalBoxFuture as BoxFuture;
+
+#[cfg(not(feature = "current-thread"))]
+use tonic::body::BoxBody;
+#[cfg(feature = "current-thread")]
+use tonic::body::LocalBoxBody as BoxBody;
+
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
 
 struct ExtensionValue(i32);
 
@@ -21,7 +34,8 @@ struct ExtensionValue(i32);
 async fn setting_extension_from_interceptor() {
     struct Svc;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test_server::Test for Svc {
         async fn unary_call(&self, req: Request<Input>) -> Result<Response<Output>, Status> {
             let value = req.extensions().get::<ExtensionValue>().unwrap();
@@ -38,7 +52,7 @@ async fn setting_extension_from_interceptor() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1323".parse().unwrap(), async { drop(rx.await) })
@@ -66,7 +80,8 @@ async fn setting_extension_from_interceptor() {
 async fn setting_extension_from_tower() {
     struct Svc;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test_server::Test for Svc {
         async fn unary_call(&self, req: Request<Input>) -> Result<Response<Output>, Status> {
             let value = req.extensions().get::<ExtensionValue>().unwrap();
@@ -82,7 +97,7 @@ async fn setting_extension_from_tower() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1324".parse().unwrap(), async { drop(rx.await) })
@@ -111,14 +126,17 @@ struct InterceptedService<S> {
     inner: S,
 }
 
+macro_rules! define_intercepted_service {
+($($maybe_send: tt)?) => {
+
 impl<S> Service<HyperRequest<Body>> for InterceptedService<S>
 where
     S: Service<HyperRequest<Body>, Response = HyperResponse<BoxBody>>
         + NamedService
+        $(+ $maybe_send)*
         + Clone
-        + Send
         + 'static,
-    S::Future: Send + 'static,
+    S::Future: $($maybe_send +)* 'static,
 {
     type Response = S::Response;
     type Error = S::Error;
@@ -140,6 +158,14 @@ where
         })
     }
 }
+
+}
+}
+
+#[cfg(not(feature = "current-thread"))]
+define_intercepted_service!(Send);
+#[cfg(feature = "current-thread")]
+define_intercepted_service!();
 
 impl<S: NamedService> NamedService for InterceptedService<S> {
     const NAME: &'static str = S::NAME;

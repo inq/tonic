@@ -12,6 +12,11 @@ use tonic_reflection::{
     server::Builder,
 };
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 pub(crate) fn get_encoded_reflection_service_fd() -> Vec<u8> {
     let mut expected = Vec::new();
     prost_types::FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)
@@ -97,7 +102,7 @@ async fn make_test_reflection_request(request: ServerReflectionRequest) -> Messa
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("SocketAddr parse");
     let listener = tokio::net::TcpListener::bind(addr).await.expect("bind");
     let local_addr = format!("http://{}", listener.local_addr().expect("local address"));
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         let service = Builder::configure()
             .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
             .build()

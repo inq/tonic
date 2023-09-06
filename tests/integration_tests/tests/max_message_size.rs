@@ -10,6 +10,11 @@ use tonic::{
     Code, Request, Response, Status,
 };
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 #[test]
 fn max_message_recv_size() {
     trace_init();
@@ -121,7 +126,8 @@ async fn response_stream_limit() {
 
     struct Svc;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test1_server::Test1 for Svc {
         async fn unary_call(&self, _req: Request<Input1>) -> Result<Response<Output1>, Status> {
             unimplemented!()
@@ -145,7 +151,7 @@ async fn response_stream_limit() {
 
     let svc = test1_server::Test1Server::new(Svc);
 
-    tokio::spawn(async move {
+    spawn_task(async move {
         Server::builder()
             .add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
@@ -281,7 +287,8 @@ async fn max_message_run(case: &TestCase) -> Result<(), Status> {
 
     struct Svc(Vec<u8>);
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test1_server::Test1 for Svc {
         async fn unary_call(&self, _req: Request<Input1>) -> Result<Response<Output1>, Status> {
             Ok(Response::new(Output1 {
@@ -314,7 +321,7 @@ async fn max_message_run(case: &TestCase) -> Result<(), Status> {
         svc
     };
 
-    tokio::spawn(async move {
+    spawn_task(async move {
         Server::builder()
             .add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))

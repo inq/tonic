@@ -9,6 +9,11 @@ use tonic::{transport::Server, Request, Response, Status, Streaming};
 
 use pb::{EchoRequest, EchoResponse};
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 type EchoResult<T> = Result<Response<T>, Status>;
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<EchoResponse, Status>> + Send>>;
 
@@ -38,7 +43,8 @@ fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
 #[derive(Debug)]
 pub struct EchoServer {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl pb::echo_server::Echo for EchoServer {
     async fn unary_echo(&self, _: Request<EchoRequest>) -> EchoResult<EchoResponse> {
         Err(Status::unimplemented("not implemented"))
@@ -105,7 +111,7 @@ impl pb::echo_server::Echo for EchoServer {
         // If we just map `in_stream` and write it back as `out_stream` the `out_stream`
         // will be drooped when connection error occurs and error will never be propagated
         // to mapped version of `in_stream`.
-        tokio::spawn(async move {
+        spawn_task(async move {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(v) => tx

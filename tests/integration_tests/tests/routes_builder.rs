@@ -13,11 +13,17 @@ use tonic::{
     Request, Response, Status,
 };
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 #[tokio::test]
 async fn multiple_service_using_routes_builder() {
     struct Svc1;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test_server::Test for Svc1 {
         async fn unary_call(&self, _req: Request<Input>) -> Result<Response<Output>, Status> {
             Ok(Response::new(Output {}))
@@ -26,7 +32,8 @@ async fn multiple_service_using_routes_builder() {
 
     struct Svc2;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test1_server::Test1 for Svc2 {
         async fn unary_call(&self, request: Request<Input1>) -> Result<Response<Output1>, Status> {
             Ok(Response::new(Output1 {
@@ -58,7 +65,7 @@ async fn multiple_service_using_routes_builder() {
         .add_service(svc1)
         .add_service(svc2);
 
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         Server::builder()
             .add_routes(routes_builder)
             .serve_with_shutdown("127.0.0.1:1400".parse().unwrap(), async { drop(rx.await) })

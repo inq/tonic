@@ -14,6 +14,12 @@ path = "src/bin/client.rs"
 name = "server"
 path = "src/bin/server.rs"
 
+[features]
+current-thread = [
+    "tonic/current-thread",
+    "tonic-build/current-thread",
+]
+
 [dependencies]
 async-stream = "0.3"
 strum = {version = "0.25", features = ["derive"]}

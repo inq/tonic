@@ -1,6 +1,5 @@
 use integration_tests::pb::test_client;
 use integration_tests::pb::{test_server, Input, Output};
-use integration_tests::BoxFuture;
 use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
@@ -13,11 +12,22 @@ use tonic::{
 use tower::Layer;
 use tower::Service;
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
+#[cfg(not(feature = "current-thread"))]
+use integration_tests::BoxFuture;
+#[cfg(feature = "current-thread")]
+use integration_tests::LocalBoxFuture as BoxFuture;
+
 #[tokio::test]
 async fn writes_origin_header() {
     struct Svc;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test_server::Test for Svc {
         async fn unary_call(
             &self,
@@ -31,7 +41,7 @@ async fn writes_origin_header() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         Server::builder()
             .layer(OriginLayer {})
             .add_service(svc)
@@ -76,10 +86,13 @@ struct OriginService<S> {
     inner: S,
 }
 
+macro_rules! define_origin_service {
+($($maybe_send: tt)?) => {
+
 impl<T> Service<Request<tonic::transport::Body>> for OriginService<T>
 where
     T: Service<Request<tonic::transport::Body>>,
-    T::Future: Send + 'static,
+    T::Future: $($maybe_send +)* 'static,
     T::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     type Response = T::Response;
@@ -97,3 +110,11 @@ where
         Box::pin(async move { fut.await.map_err(Into::into) })
     }
 }
+
+}
+}
+
+#[cfg(not(feature = "current-thread"))]
+define_origin_service!(Send);
+#[cfg(feature = "current-thread")]
+define_origin_service!();

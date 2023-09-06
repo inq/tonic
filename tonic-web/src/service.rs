@@ -5,10 +5,7 @@ use std::task::{ready, Context, Poll};
 use http::{header, HeaderMap, HeaderValue, Method, Request, Response, StatusCode, Version};
 use hyper::Body;
 use pin_project::pin_project;
-use tonic::{
-    body::BoxBody,
-    server::NamedService,
-};
+use tonic::server::NamedService;
 use tower_service::Service;
 use tracing::{debug, trace};
 
@@ -17,6 +14,11 @@ use crate::call::{Encoding, GrpcWebCall};
 use crate::BoxError;
 
 const GRPC: &str = "application/grpc";
+
+#[cfg(not(feature = "current-thread"))]
+use tonic::body::BoxBody;
+#[cfg(feature = "current-thread")]
+use tonic::body::LocalBoxBody as BoxBody;
 
 #[cfg(not(feature = "current-thread"))]
 use tonic::body::empty_body;
@@ -55,7 +57,7 @@ impl<S> GrpcWebService<S> {
 
 impl<S> GrpcWebService<S>
 where
-    S: Service<Request<Body>, Response = Response<BoxBody>> + Send + 'static,
+    S: Service<Request<Body>, Response = Response<BoxBody>> + 'static,
 {
     fn response(&self, status: StatusCode) -> ResponseFuture<S::Future> {
         ResponseFuture {
@@ -73,8 +75,8 @@ where
 
 impl<S> Service<Request<Body>> for GrpcWebService<S>
 where
-    S: Service<Request<Body>, Response = Response<BoxBody>> + Send + 'static,
-    S::Future: Send + 'static,
+    S: Service<Request<Body>, Response = Response<BoxBody>> + 'static,
+    S::Future: 'static,
     S::Error: Into<BoxError> + Send,
 {
     type Response = S::Response;
@@ -166,7 +168,7 @@ enum Case<F> {
 
 impl<F, E> Future for ResponseFuture<F>
 where
-    F: Future<Output = Result<Response<BoxBody>, E>> + Send + 'static,
+    F: Future<Output = Result<Response<BoxBody>, E>> + 'static,
     E: Into<BoxError> + Send,
 {
     type Output = Result<Response<BoxBody>, E>;

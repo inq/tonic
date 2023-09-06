@@ -2,6 +2,7 @@ use super::*;
 use http_body::Body as _;
 use tonic::codec::CompressionEncoding;
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn client_enabled_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
@@ -52,6 +53,7 @@ async fn client_enabled_server_enabled() {
     }
 }
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn client_enabled_server_disabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
@@ -88,6 +90,7 @@ async fn client_enabled_server_disabled() {
     );
 }
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn client_mark_compressed_without_header_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);

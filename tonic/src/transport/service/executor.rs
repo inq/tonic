@@ -4,7 +4,7 @@ use std::{future::Future, sync::Arc};
 pub(crate) use hyper::rt::Executor;
 
 #[derive(Copy, Clone)]
-pub(crate) struct TokioExec;
+pub struct TokioExec;
 
 impl<F> Executor<F> for TokioExec
 where
@@ -17,7 +17,7 @@ where
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct LocalExec;
+pub struct LocalExec;
 
 impl<F> Executor<F> for LocalExec
 where

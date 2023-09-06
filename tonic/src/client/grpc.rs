@@ -44,6 +44,9 @@ struct GrpcConfig {
     max_encoding_message_size: Option<usize>,
 }
 
+macro_rules! define_grpc {
+($($maybe_send: tt)?) => {
+
 impl<T> Grpc<T> {
     /// Creates a new gRPC client with the provided [`GrpcService`].
     pub fn new(inner: T) -> Self {
@@ -210,7 +213,7 @@ impl<T> Grpc<T> {
     ) -> Result<Response<M2>, Status>
     where
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + Send + 'static,
+        T::ResponseBody: Body + $($maybe_send +)* 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
         C: Codec<Encode = M1, Decode = M2>,
         M1: Send + Sync + 'static,
@@ -229,7 +232,7 @@ impl<T> Grpc<T> {
     ) -> Result<Response<M2>, Status>
     where
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + Send + 'static,
+        T::ResponseBody: Body + $($maybe_send +)* 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
         S: Stream<Item = M1> + Send + 'static,
         C: Codec<Encode = M1, Decode = M2>,
@@ -266,7 +269,7 @@ impl<T> Grpc<T> {
     ) -> Result<Response<Streaming<M2>>, Status>
     where
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + Send + 'static,
+        T::ResponseBody: Body + $($maybe_send +)* 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
         C: Codec<Encode = M1, Decode = M2>,
         M1: Send + Sync + 'static,
@@ -285,7 +288,7 @@ impl<T> Grpc<T> {
     ) -> Result<Response<Streaming<M2>>, Status>
     where
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + Send + 'static,
+        T::ResponseBody: Body + $($maybe_send +)* 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
         S: Stream<Item = M1> + Send + 'static,
         C: Codec<Encode = M1, Decode = M2>,
@@ -325,7 +328,7 @@ impl<T> Grpc<T> {
     ) -> Result<Response<Streaming<M2>>, Status>
     where
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + Send + 'static,
+        T::ResponseBody: Body + $($maybe_send +)* 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
     {
         let encoding = CompressionEncoding::from_encoding_header(
@@ -365,6 +368,14 @@ impl<T> Grpc<T> {
         Ok(Response::from_http(response))
     }
 }
+
+}
+}
+
+#[cfg(not(feature = "current-thread"))]
+define_grpc!(Send);
+#[cfg(feature = "current-thread")]
+define_grpc!();
 
 impl GrpcConfig {
     fn prepare_request(

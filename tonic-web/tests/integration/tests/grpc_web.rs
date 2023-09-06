@@ -65,7 +65,18 @@ async fn spawn() -> String {
     let url = format!("http://{}", listener.local_addr().unwrap());
     let listener_stream = TcpListenerStream::new(listener);
 
-    let _ = tokio::spawn(async move {
+    #[cfg(not(feature = "current-thread"))]
+    tokio::spawn(async move {
+        Server::builder()
+            .accept_http1(true)
+            .layer(GrpcWebLayer::new())
+            .add_service(TestServer::new(Svc))
+            .serve_with_incoming(listener_stream)
+            .await
+            .unwrap()
+    });
+    #[cfg(feature = "current-thread")]
+    tokio::task::spawn_local(async move {
         Server::builder()
             .accept_http1(true)
             .layer(GrpcWebLayer::new())

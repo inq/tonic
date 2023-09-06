@@ -37,8 +37,7 @@ pub(crate) mod base64 {
 
 pub(crate) struct LocalBoxCloneService<T, U, E>(
     Box<
-        dyn CloneService<T, Response = U, Error = E, Future = LocalBoxFuture<U, E>>
-            + Send,
+        dyn CloneService<T, Response = U, Error = E, Future = LocalBoxFuture<U, E>>,
     >,
 );
 
@@ -46,7 +45,7 @@ impl<T, U, E> LocalBoxCloneService<T, U, E> {
     /// Create a new `BoxCloneService`.
     pub(crate) fn new<S>(inner: S) -> Self
     where
-        S: Service<T, Response = U, Error = E> + Clone + Send + 'static,
+        S: Service<T, Response = U, Error = E> + Clone + 'static,
         S::Future: 'static,
     {
         let inner = inner.map_future(|f| Box::pin(f) as _);
@@ -59,8 +58,8 @@ impl<T, U, E> LocalBoxCloneService<T, U, E> {
     /// [`Layer`]: crate::Layer
     pub(crate) fn layer<S>() -> LayerFn<fn(S) -> Self>
     where
-        S: Service<T, Response = U, Error = E> + Clone + Send + 'static,
-        S::Future: Send + 'static,
+        S: Service<T, Response = U, Error = E> + Clone + 'static,
+        S::Future: 'static,
     {
         layer_fn(Self::new)
     }
@@ -92,18 +91,17 @@ trait CloneService<R>: Service<R> {
     fn clone_box(
         &self,
     ) -> Box<
-        dyn CloneService<R, Response = Self::Response, Error = Self::Error, Future = Self::Future>
-            + Send,
+        dyn CloneService<R, Response = Self::Response, Error = Self::Error, Future = Self::Future>,
     >;
 }
 
 impl<R, T> CloneService<R> for T
 where
-    T: Service<R> + Send + Clone + 'static,
+    T: Service<R> + Clone + 'static,
 {
     fn clone_box(
         &self,
-    ) -> Box<dyn CloneService<R, Response = T::Response, Error = T::Error, Future = T::Future> + Send>
+    ) -> Box<dyn CloneService<R, Response = T::Response, Error = T::Error, Future = T::Future>>
     {
         Box::new(self.clone())
     }

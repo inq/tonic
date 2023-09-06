@@ -44,7 +44,7 @@ impl Routes {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
         S::Future: $($maybe_send +)* 'static,
         S::Error: Into<crate::Error> + Send,
@@ -61,7 +61,7 @@ impl Routes {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
         S::Future: $($maybe_send +)* 'static,
         S::Error: Into<crate::Error> + Send,

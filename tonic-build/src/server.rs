@@ -57,6 +57,10 @@ pub(crate) fn generate_internal<T: Service>(
     let struct_attributes = attributes.for_struct(&service_name);
 
     #[cfg(not(feature = "current-thread"))]
+    let rc_type = quote!(Arc);
+    #[cfg(feature = "current-thread")]
+    let rc_type = quote!(Rc);
+    #[cfg(not(feature = "current-thread"))]
     let box_future_type = quote!(BoxFuture);
     #[cfg(feature = "current-thread")]
     let box_future_type = quote!(LocalBoxFuture);
@@ -131,14 +135,14 @@ pub(crate) fn generate_internal<T: Service>(
                 max_encoding_message_size: Option<usize>,
             }
 
-            struct _Inner<T>(Arc<T>);
+            struct _Inner<T>(#rc_type<T>);
 
             impl<T: #server_trait> #server_service<T> {
                 pub fn new(inner: T) -> Self {
-                    Self::from_arc(Arc::new(inner))
+                    Self::from_arc(#rc_type::new(inner))
                 }
 
-                pub fn from_arc(inner: Arc<T>) -> Self {
+                pub fn from_arc(inner: #rc_type<T>) -> Self {
                     let inner = _Inner(inner);
                     Self {
                         inner,
@@ -208,7 +212,7 @@ pub(crate) fn generate_internal<T: Service>(
 
             impl<T: #server_trait> Clone for _Inner<T> {
                 fn clone(&self) -> Self {
-                    Self(Arc::clone(&self.0))
+                    Self(#rc_type::clone(&self.0))
                 }
             }
 
@@ -279,6 +283,10 @@ fn generate_trait_methods<T: Service>(
     let mut stream = TokenStream::new();
 
     #[cfg(not(feature = "current-thread"))]
+    let rc_type = quote!(Arc);
+    #[cfg(feature = "current-thread")]
+    let rc_type = quote!(Rc);
+    #[cfg(not(feature = "current-thread"))]
     let box_stream_type = quote!(BoxStream);
     #[cfg(feature = "current-thread")]
     let box_stream_type = quote!(LocalBoxStream);
@@ -301,7 +309,7 @@ fn generate_trait_methods<T: Service>(
             };
 
         let self_param = if use_arc_self {
-            quote!(self: std::sync::Arc<Self>)
+            quote!(self: #rc_type<Self>)
         } else {
             quote!(&self)
         };
@@ -495,6 +503,11 @@ fn generate_unary<T: Method>(
 
     let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
 
+    #[cfg(not(feature = "current-thread"))]
+    let rc_type = quote!(Arc);
+    #[cfg(feature = "current-thread")]
+    let rc_type = quote!(Rc);
+
     let inner_arg = if use_arc_self {
         quote!(inner)
     } else {
@@ -503,7 +516,7 @@ fn generate_unary<T: Method>(
 
     quote! {
         #[allow(non_camel_case_types)]
-        struct #service_ident<T: #server_trait >(pub Arc<T>);
+        struct #service_ident<T: #server_trait >(pub #rc_type<T>);
 
         impl<T: #server_trait> tonic::server::UnaryService<#request> for #service_ident<T> {
             type Response = #response;
@@ -513,7 +526,7 @@ fn generate_unary<T: Method>(
             type Future = LocalBoxFuture<tonic::Response<Self::Response>, tonic::Status>;
 
             fn call(&mut self, request: tonic::Request<#request>) -> Self::Future {
-                let inner = Arc::clone(&self.0);
+                let inner = #rc_type::clone(&self.0);
                 let fut = async move {
                     <T as #server_trait>::#method_ident(#inner_arg, request).await
                 };
@@ -558,6 +571,10 @@ fn generate_server_streaming<T: Method>(
     let service_ident = quote::format_ident!("{}Svc", method.identifier());
 
     #[cfg(not(feature = "current-thread"))]
+    let rc_type = quote!(Arc);
+    #[cfg(feature = "current-thread")]
+    let rc_type = quote!(Rc);
+    #[cfg(not(feature = "current-thread"))]
     let box_stream_type = quote!(BoxStream);
     #[cfg(feature = "current-thread")]
     let box_stream_type = quote!(LocalBoxStream);
@@ -579,7 +596,7 @@ fn generate_server_streaming<T: Method>(
 
     quote! {
         #[allow(non_camel_case_types)]
-        struct #service_ident<T: #server_trait >(pub Arc<T>);
+        struct #service_ident<T: #server_trait >(pub #rc_type<T>);
 
         impl<T: #server_trait> tonic::server::ServerStreamingService<#request> for #service_ident<T> {
             type Response = #response;
@@ -590,7 +607,7 @@ fn generate_server_streaming<T: Method>(
             type Future = LocalBoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
 
             fn call(&mut self, request: tonic::Request<#request>) -> Self::Future {
-                let inner = Arc::clone(&self.0);
+                let inner = #rc_type::clone(&self.0);
                 let fut = async move {
                     <T as #server_trait>::#method_ident(#inner_arg, request).await
                 };

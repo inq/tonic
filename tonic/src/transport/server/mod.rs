@@ -380,7 +380,7 @@ impl<L> Server<L> {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
         S::Future: $($maybe_send +)* 'static,
         L: Clone,
@@ -401,7 +401,7 @@ impl<L> Server<L> {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
         S::Future: $($maybe_send +)* 'static,
         L: Clone,
@@ -516,7 +516,7 @@ impl<L> Server<L> {
     ) -> Result<(), super::Error>
     where
         L: Layer<S>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
         <<L as Layer<S>>::Service as Service<Request<Body>>>::Future: $($maybe_send)*,
         <<L as Layer<S>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
         I: Stream<Item = Result<IO, IE>>,
@@ -592,7 +592,7 @@ impl<L> Router<L> {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
         S::Future: $($maybe_send +)* 'static,
     {
@@ -611,7 +611,7 @@ impl<L> Router<L> {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
         S::Future: $($maybe_send +)* 'static,
     {
@@ -634,7 +634,7 @@ impl<L> Router<L> {
     pub async fn serve<ResBody>(self, addr: SocketAddr) -> Result<(), super::Error>
     where
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
         ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
@@ -664,7 +664,7 @@ impl<L> Router<L> {
     ) -> Result<(), super::Error>
     where
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
         ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
@@ -693,7 +693,7 @@ impl<L> Router<L> {
         IO::ConnectInfo: Clone + Send + Sync + 'static,
         IE: Into<crate::Error>,
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
         ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
@@ -728,7 +728,7 @@ impl<L> Router<L> {
         IE: Into<crate::Error>,
         F: Future<Output = ()>,
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
         ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
@@ -743,8 +743,8 @@ impl<L> Router<L> {
     pub fn into_service<ResBody>(self) -> L::Service
     where
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
-        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
+        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
         ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
         ResBody::Error: Into<crate::Error>,
@@ -844,7 +844,7 @@ struct MakeSvc<S, IO> {
 impl<S, ResBody, IO> Service<&ServerIo<IO>> for MakeSvc<S, IO>
 where
     IO: Connected,
-    S: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
+    S: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
     S::Future: $($maybe_send +)* 'static,
     S::Error: Into<crate::Error> + Send,
     ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,

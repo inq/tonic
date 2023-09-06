@@ -14,6 +14,11 @@ readme = "README.md"
 repository = "https://github.com/hyperium/tonic"
 version = "0.10.0"
 
+[features]
+current-thread = [
+    "tonic/current-thread",
+]
+
 [dependencies]
 base64 = "0.21"
 bytes = "1"

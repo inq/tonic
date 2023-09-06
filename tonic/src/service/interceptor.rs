@@ -3,7 +3,6 @@
 //! See [`Interceptor`] for more details.
 
 use crate::{
-    body::{boxed, BoxBody},
     request::SanitizeHeaders,
     Status,
 };
@@ -17,6 +16,11 @@ use std::{
 };
 use tower_layer::Layer;
 use tower_service::Service;
+
+#[cfg(not(feature = "current-thread"))]
+use crate::body::{boxed, BoxBody};
+#[cfg(feature = "current-thread")]
+use crate::body::{boxed_local as boxed, LocalBoxBody as BoxBody};
 
 /// A gRPC interceptor.
 ///
@@ -119,13 +123,15 @@ where
     }
 }
 
+macro_rules! define_interceptor {
+($($maybe_send: tt)?) => {
+
 impl<S, F, ReqBody, ResBody> Service<http::Request<ReqBody>> for InterceptedService<S, F>
 where
-    ResBody: Default + http_body::Body<Data = Bytes> + Send + 'static,
+    ResBody: Default + http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
     F: Interceptor,
     S: Service<http::Request<ReqBody>, Response = http::Response<ResBody>>,
     S::Error: Into<crate::Error>,
-    ResBody: http_body::Body<Data = bytes::Bytes> + Send + 'static,
     ResBody::Error: Into<crate::Error>,
 {
     type Response = http::Response<BoxBody>;
@@ -205,7 +211,7 @@ impl<F, E, B> Future for ResponseFuture<F>
 where
     F: Future<Output = Result<http::Response<B>, E>>,
     E: Into<crate::Error>,
-    B: Default + http_body::Body<Data = Bytes> + Send + 'static,
+    B: Default + http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
     B::Error: Into<crate::Error>,
 {
     type Output = Result<http::Response<BoxBody>, E>;
@@ -227,6 +233,14 @@ where
         }
     }
 }
+
+}
+}
+
+#[cfg(not(feature = "current-thread"))]
+define_interceptor!(Send);
+#[cfg(feature = "current-thread")]
+define_interceptor!();
 
 #[cfg(test)]
 mod tests {

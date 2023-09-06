@@ -65,6 +65,17 @@ pub mod health_client {
     pub struct HealthClient<T> {
         inner: tonic::client::Grpc<T>,
     }
+    impl HealthClient<tonic::transport::Channel> {
+        /// Attempt to create a new client by connecting to a given endpoint.
+        pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
+        {
+            let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
+            Ok(Self::new(conn))
+        }
+    }
     impl<T> HealthClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
@@ -328,7 +339,13 @@ pub mod health_server {
                     > tonic::server::UnaryService<super::HealthCheckRequest>
                     for CheckSvc<T> {
                         type Response = super::HealthCheckResponse;
+                        #[cfg(not(feature = "current-thread"))]
                         type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        #[cfg(feature = "current-thread")]
+                        type Future = LocalBoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
@@ -375,7 +392,13 @@ pub mod health_server {
                     for WatchSvc<T> {
                         type Response = super::HealthCheckResponse;
                         type ResponseStream = T::WatchStream;
+                        #[cfg(not(feature = "current-thread"))]
                         type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        #[cfg(feature = "current-thread")]
+                        type Future = LocalBoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;

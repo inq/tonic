@@ -12,7 +12,8 @@ tonic::include_proto!("test_default");
 #[derive(Debug, Default)]
 struct Svc;
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl test_server::Test for Svc {
     type ServerStreamStream = Pin<Box<dyn Stream<Item = Result<(), Status>> + Send + 'static>>;
     type BidirectionalStreamStream =
@@ -41,7 +42,8 @@ impl test_server::Test for Svc {
     }
 }
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl test_default_server::TestDefault for Svc {
     // Default unimplemented stubs provided here.
 }

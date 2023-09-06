@@ -6,6 +6,11 @@ edition = "2021"
 publish = false
 version = "0.1.0"
 
+[features]
+current-thread = [
+    "tonic-build/current-thread",
+]
+
 [dependencies]
 tempfile = "3.8.0"
 tonic-build = {path = "../tonic-build", default-features = false, features = ["prost", "cleanup-markdown"]}

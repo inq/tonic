@@ -6,6 +6,7 @@ use tonic::{
     GrpcMethod, Request, Response, Status,
 };
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test]
 async fn interceptor_retrieves_grpc_method() {
     use test_server::Test;

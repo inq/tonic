@@ -94,6 +94,8 @@ mod error;
 mod service;
 mod tls;
 
+pub use self::service::executor::{TokioExec, LocalExec};
+
 #[doc(inline)]
 #[cfg(feature = "channel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "channel")))]

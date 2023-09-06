@@ -17,6 +17,9 @@ version = "0.10.0"
 [features]
 default = ["transport"]
 transport = []
+current-thread = [
+    "tonic/current-thread",
+]
 
 [dependencies]
 async-stream = "0.3"

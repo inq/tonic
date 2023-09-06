@@ -14,7 +14,8 @@ use tower::{layer::Layer, BoxError, Service};
 async fn complex_tower_layers_work() {
     struct Svc;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test_server::Test for Svc {
         async fn unary_call(&self, req: Request<Input>) -> Result<Response<Output>, Status> {
             unimplemented!()

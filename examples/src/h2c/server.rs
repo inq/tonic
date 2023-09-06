@@ -4,6 +4,21 @@ use hello_world::greeter_server::{Greeter, GreeterServer};
 use hello_world::{HelloReply, HelloRequest};
 use tower::make::Shared;
 
+#[cfg(not(feature = "current-thread"))]
+use tonic::transport::TokioExec as Exec;
+#[cfg(feature = "current-thread")]
+use tonic::transport::LocalExec as Exec;
+
+#[cfg(not(feature = "current-thread"))]
+use tonic::body::BoxBody;
+#[cfg(feature = "current-thread")]
+use tonic::body::LocalBoxBody as BoxBody;
+
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 pub mod hello_world {
     tonic::include_proto!("helloworld");
 }
@@ -11,7 +26,8 @@ pub mod hello_world {
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,
@@ -39,13 +55,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let h2c = h2c::H2c { s: svc };
 
-    let server = hyper::Server::bind(&addr).serve(Shared::new(h2c));
+    let server = hyper::Server::bind(&addr).executor(Exec).serve(Shared::new(h2c));
     server.await.unwrap();
 
     Ok(())
 }
 
+macro_rules! define_h2c {
+($($maybe_send: tt)?) => {
+
 mod h2c {
+    use super::{BoxBody, Exec, spawn_task};
     use std::pin::Pin;
 
     use http::{Request, Response};
@@ -61,18 +81,18 @@ mod h2c {
 
     impl<S> Service<Request<Body>> for H2c<S>
     where
-        S: Service<Request<Body>, Response = Response<tonic::body::BoxBody>>
+        S: Service<Request<Body>, Response = Response<BoxBody>>
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
-        S::Future: Send + 'static,
+        S::Future: $($maybe_send +)* 'static,
         S::Error: Into<BoxError> + Sync + Send + 'static,
-        S::Response: Send + 'static,
+        S::Response: $($maybe_send +)* 'static,
     {
         type Response = hyper::Response<Body>;
         type Error = hyper::Error;
         type Future =
-            Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+            Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> $(+ $maybe_send)*>>;
 
         fn poll_ready(
             &mut self,
@@ -84,10 +104,11 @@ mod h2c {
         fn call(&mut self, mut req: hyper::Request<Body>) -> Self::Future {
             let svc = self.s.clone();
             Box::pin(async move {
-                tokio::spawn(async move {
+                spawn_task(async move {
                     let upgraded_io = hyper::upgrade::on(&mut req).await.unwrap();
 
                     hyper::server::conn::Http::new()
+                        .with_executor(Exec)
                         .http2_only(true)
                         .serve_connection(upgraded_io, svc)
                         .await
@@ -106,3 +127,11 @@ mod h2c {
         }
     }
 }
+
+}
+}
+
+#[cfg(not(feature = "current-thread"))]
+define_h2c!(Send);
+#[cfg(feature = "current-thread")]
+define_h2c!();

@@ -20,7 +20,8 @@ type EchoResult<T> = Result<Response<T>, Status>;
 #[derive(Default)]
 pub struct MyEcho {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Echo for MyEcho {
     async fn unary_echo(&self, request: Request<EchoRequest>) -> EchoResult<EchoResponse> {
         println!("Got an echo request from {:?}", request.remote_addr());
@@ -46,7 +47,8 @@ fn init_echo(args: &[String], routes: &mut Routes) {
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,

@@ -3,6 +3,11 @@ use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
 use tonic::{transport::Server, Code, Request, Response, Status};
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 #[tokio::test]
 async fn cancelation_on_timeout() {
     let addr = run_service_in_background(Duration::from_secs(1), Duration::from_secs(100)).await;
@@ -66,7 +71,8 @@ async fn run_service_in_background(latency: Duration, server_timeout: Duration) 
         latency: Duration,
     }
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test_server::Test for Svc {
         async fn unary_call(&self, _req: Request<Input>) -> Result<Response<Output>, Status> {
             tokio::time::sleep(self.latency).await;
@@ -79,7 +85,7 @@ async fn run_service_in_background(latency: Duration, server_timeout: Duration) 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
 
-    tokio::spawn(async move {
+    spawn_task(async move {
         Server::builder()
             .timeout(server_timeout)
             .add_service(svc)

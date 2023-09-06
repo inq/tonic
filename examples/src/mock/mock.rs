@@ -14,13 +14,18 @@ use hello_world::{
     HelloReply, HelloRequest,
 };
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (client, server) = tokio::io::duplex(1024);
 
     let greeter = MyGreeter::default();
 
-    tokio::spawn(async move {
+    spawn_task(async move {
         Server::builder()
             .add_service(GreeterServer::new(greeter))
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
@@ -63,7 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,

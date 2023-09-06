@@ -1,6 +1,7 @@
 use super::*;
 use tonic::codec::CompressionEncoding;
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn client_enabled_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
@@ -70,6 +71,7 @@ async fn client_enabled_server_enabled() {
     }
 }
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn client_enabled_server_disabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
@@ -111,6 +113,7 @@ async fn client_enabled_server_disabled() {
     assert!(bytes_sent > UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn client_disabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
@@ -176,6 +179,7 @@ async fn client_disabled() {
     assert!(bytes_sent > UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn server_replying_with_unsupported_encoding() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
@@ -214,6 +218,7 @@ async fn server_replying_with_unsupported_encoding() {
     );
 }
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn disabling_compression_on_single_response() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
@@ -255,6 +260,7 @@ async fn disabling_compression_on_single_response() {
     assert!(bytes_sent > UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn disabling_compression_on_response_but_keeping_compression_on_stream() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
@@ -311,6 +317,7 @@ async fn disabling_compression_on_response_but_keeping_compression_on_stream() {
     assert!(response_bytes_counter.load(SeqCst) < UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
+#[cfg(not(feature = "current-thread"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn disabling_compression_on_response_from_client_stream() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
