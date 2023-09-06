@@ -17,7 +17,6 @@ pub(crate) fn generate_internal<T: Service>(
     compile_well_known_types: bool,
     attributes: &Attributes,
     disable_comments: &HashSet<String>,
-    single_threaded: bool,
     use_arc_self: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
@@ -26,7 +25,6 @@ pub(crate) fn generate_internal<T: Service>(
         emit_package,
         proto_path,
         compile_well_known_types,
-        single_threaded,
         use_arc_self,
         generate_default_stubs,
     );
@@ -41,7 +39,6 @@ pub(crate) fn generate_internal<T: Service>(
         compile_well_known_types,
         server_trait.clone(),
         disable_comments,
-        single_threaded,
         use_arc_self,
         generate_default_stubs,
     );
@@ -59,21 +56,18 @@ pub(crate) fn generate_internal<T: Service>(
     let mod_attributes = attributes.for_mod(package);
     let struct_attributes = attributes.for_struct(&service_name);
 
-    let box_future_type = if single_threaded {
-        quote!(LocalBoxFuture)
-    } else {
-        quote!(BoxFuture)
-    };
-    let box_body_type = if single_threaded {
-        quote!(LocalBoxBody)
-    } else {
-        quote!(BoxBody)
-    };
-    let empty_body_fn = if single_threaded {
-        quote!(local_empty_body)
-    } else {
-        quote!(empty_body)
-    };
+    #[cfg(not(feature = "current-thread"))]
+    let box_future_type = quote!(BoxFuture);
+    #[cfg(feature = "current-thread")]
+    let box_future_type = quote!(LocalBoxFuture);
+    #[cfg(not(feature = "current-thread"))]
+    let box_body_type = quote!(BoxBody);
+    #[cfg(feature = "current-thread")]
+    let box_body_type = quote!(LocalBoxBody);
+    #[cfg(not(feature = "current-thread"))]
+    let empty_body_fn = quote!(empty_body);
+    #[cfg(feature = "current-thread")]
+    let empty_body_fn = quote!(local_empty_body);
 
     let configure_compression_methods = quote! {
         /// Enable decompressing requests with the given encoding.
@@ -237,7 +231,6 @@ fn generate_trait<T: Service>(
     compile_well_known_types: bool,
     server_trait: Ident,
     disable_comments: &HashSet<String>,
-    single_threaded: bool,
     use_arc_self: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
@@ -247,7 +240,6 @@ fn generate_trait<T: Service>(
         proto_path,
         compile_well_known_types,
         disable_comments,
-        single_threaded,
         use_arc_self,
         generate_default_stubs,
     );
@@ -256,21 +248,20 @@ fn generate_trait<T: Service>(
         service.name()
     ));
 
-    if single_threaded {
-        quote! {
-            #trait_doc
-            #[async_trait(?Send)]
-            pub trait #server_trait: 'static {
-                #methods
-            }
+    #[cfg(not(feature = "current-thread"))]
+    quote! {
+        #trait_doc
+        #[async_trait]
+        pub trait #server_trait : Send + Sync + 'static {
+            #methods
         }
-    } else {
-        quote! {
-            #trait_doc
-            #[async_trait]
-            pub trait #server_trait : Send + Sync + 'static {
-                #methods
-            }
+    }
+    #[cfg(feature = "current-thread")]
+    quote! {
+        #trait_doc
+        #[async_trait(?Send)]
+        pub trait #server_trait: 'static {
+            #methods
         }
     }
 }
@@ -282,22 +273,19 @@ fn generate_trait_methods<T: Service>(
     proto_path: &str,
     compile_well_known_types: bool,
     disable_comments: &HashSet<String>,
-    single_threaded: bool,
     use_arc_self: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
     let mut stream = TokenStream::new();
 
-    let box_stream_type = if single_threaded {
-        quote!(LocalBoxStream)
-    } else {
-        quote!(BoxStream)
-    };
-    let extra_trait = if single_threaded {
-        quote!('static)
-    } else {
-        quote!(Send + 'static)
-    };
+    #[cfg(not(feature = "current-thread"))]
+    let box_stream_type = quote!(BoxStream);
+    #[cfg(feature = "current-thread")]
+    let box_stream_type = quote!(LocalBoxStream);
+    #[cfg(not(feature = "current-thread"))]
+    let extra_trait = quote!(Send + 'static);
+    #[cfg(feature = "current-thread")]
+    let extra_trait = quote!('static);
 
     for method in service.methods() {
         let name = quote::format_ident!("{}", method.name());
@@ -432,7 +420,6 @@ fn generate_methods<T: Service>(
     emit_package: bool,
     proto_path: &str,
     compile_well_known_types: bool,
-    single_threaded: bool,
     use_arc_self: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
@@ -451,7 +438,6 @@ fn generate_methods<T: Service>(
                 compile_well_known_types,
                 ident,
                 server_trait,
-                single_threaded,
                 use_arc_self,
             ),
 
@@ -461,7 +447,6 @@ fn generate_methods<T: Service>(
                 compile_well_known_types,
                 ident.clone(),
                 server_trait,
-                single_threaded,
                 use_arc_self,
                 generate_default_stubs,
             ),
@@ -471,7 +456,6 @@ fn generate_methods<T: Service>(
                 compile_well_known_types,
                 ident.clone(),
                 server_trait,
-                single_threaded,
                 use_arc_self,
             ),
 
@@ -481,7 +465,6 @@ fn generate_methods<T: Service>(
                 compile_well_known_types,
                 ident.clone(),
                 server_trait,
-                single_threaded,
                 use_arc_self,
                 generate_default_stubs,
             ),
@@ -504,7 +487,6 @@ fn generate_unary<T: Method>(
     compile_well_known_types: bool,
     method_ident: Ident,
     server_trait: Ident,
-    single_threaded: bool,
     use_arc_self: bool,
 ) -> TokenStream {
     let codec_name = syn::parse_str::<syn::Path>(method.codec_path()).unwrap();
@@ -512,12 +494,6 @@ fn generate_unary<T: Method>(
     let service_ident = quote::format_ident!("{}Svc", method.identifier());
 
     let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
-
-    let box_future_type = if single_threaded {
-        quote!(LocalBoxFuture)
-    } else {
-        quote!(BoxFuture)
-    };
 
     let inner_arg = if use_arc_self {
         quote!(inner)
@@ -531,7 +507,10 @@ fn generate_unary<T: Method>(
 
         impl<T: #server_trait> tonic::server::UnaryService<#request> for #service_ident<T> {
             type Response = #response;
-            type Future = #box_future_type<tonic::Response<Self::Response>, tonic::Status>;
+            #[cfg(not(feature = "current-thread"))]
+            type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+            #[cfg(feature = "current-thread")]
+            type Future = LocalBoxFuture<tonic::Response<Self::Response>, tonic::Status>;
 
             fn call(&mut self, request: tonic::Request<#request>) -> Self::Future {
                 let inner = Arc::clone(&self.0);
@@ -571,7 +550,6 @@ fn generate_server_streaming<T: Method>(
     compile_well_known_types: bool,
     method_ident: Ident,
     server_trait: Ident,
-    single_threaded: bool,
     use_arc_self: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
@@ -579,18 +557,12 @@ fn generate_server_streaming<T: Method>(
 
     let service_ident = quote::format_ident!("{}Svc", method.identifier());
 
-    let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
+    #[cfg(not(feature = "current-thread"))]
+    let box_stream_type = quote!(BoxStream);
+    #[cfg(feature = "current-thread")]
+    let box_stream_type = quote!(LocalBoxStream);
 
-    let box_future_type = if single_threaded {
-        quote!(LocalBoxFuture)
-    } else {
-        quote!(BoxFuture)
-    };
-    let box_stream_type = if single_threaded {
-        quote!(LocalBoxStream)
-    } else {
-        quote!(BoxStream)
-    };
+    let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
 
     let response_stream = if !generate_default_stubs {
         let stream = quote::format_ident!("{}Stream", method.identifier());
@@ -612,7 +584,10 @@ fn generate_server_streaming<T: Method>(
         impl<T: #server_trait> tonic::server::ServerStreamingService<#request> for #service_ident<T> {
             type Response = #response;
             #response_stream;
-            type Future = #box_future_type<tonic::Response<Self::ResponseStream>, tonic::Status>;
+            #[cfg(not(feature = "current-thread"))]
+            type Future = BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+            #[cfg(feature = "current-thread")]
+            type Future = LocalBoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
 
             fn call(&mut self, request: tonic::Request<#request>) -> Self::Future {
                 let inner = Arc::clone(&self.0);
@@ -651,7 +626,6 @@ fn generate_client_streaming<T: Method>(
     compile_well_known_types: bool,
     method_ident: Ident,
     server_trait: Ident,
-    single_threaded: bool,
     use_arc_self: bool,
 ) -> TokenStream {
     let service_ident = quote::format_ident!("{}Svc", method.identifier());
@@ -659,16 +633,14 @@ fn generate_client_streaming<T: Method>(
     let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
     let codec_name = syn::parse_str::<syn::Path>(method.codec_path()).unwrap();
 
-    let rc_type = if single_threaded {
-        quote!(Rc)
-    } else {
-        quote!(Arc)
-    };
-    let box_future_type = if single_threaded {
-        quote!(LocalBoxFuture)
-    } else {
-        quote!(BoxFuture)
-    };
+    #[cfg(not(feature = "current-thread"))]
+    let rc_type = quote!(Arc);
+    #[cfg(feature = "current-thread")]
+    let rc_type = quote!(Rc);
+    #[cfg(not(feature = "current-thread"))]
+    let box_future_type = quote!(BoxFuture);
+    #[cfg(feature = "current-thread")]
+    let box_future_type = quote!(LocalBoxFuture);
 
     let inner_arg = if use_arc_self {
         quote!(inner)
@@ -723,7 +695,6 @@ fn generate_streaming<T: Method>(
     compile_well_known_types: bool,
     method_ident: Ident,
     server_trait: Ident,
-    single_threaded: bool,
     use_arc_self: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
@@ -733,21 +704,14 @@ fn generate_streaming<T: Method>(
 
     let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
 
-    let rc_type = if single_threaded {
-        quote!(Rc)
-    } else {
-        quote!(Arc)
-    };
-    let box_future_type = if single_threaded {
-        quote!(LocalBoxFuture)
-    } else {
-        quote!(BoxFuture)
-    };
-    let box_stream_type = if single_threaded {
-        quote!(LocalBoxStream)
-    } else {
-        quote!(BoxStream)
-    };
+    #[cfg(not(feature = "current-thread"))]
+    let rc_type = quote!(Arc);
+    #[cfg(feature = "current-thread")]
+    let rc_type = quote!(Rc);
+    #[cfg(not(feature = "current-thread"))]
+    let box_stream_type = quote!(BoxStream);
+    #[cfg(feature = "current-thread")]
+    let box_stream_type = quote!(LocalBoxStream);
 
     let response_stream = if !generate_default_stubs {
         let stream = quote::format_ident!("{}Stream", method.identifier());
@@ -770,7 +734,10 @@ fn generate_streaming<T: Method>(
         {
             type Response = #response;
             #response_stream;
-            type Future = #box_future_type<tonic::Response<Self::ResponseStream>, tonic::Status>;
+            #[cfg(not(feature = "current-thread"))]
+            type Future = BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+            #[cfg(feature = "current-thread")]
+            type Future = LocalBoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
 
             fn call(&mut self, request: tonic::Request<tonic::Streaming<#request>>) -> Self::Future {
                 let inner = #rc_type::clone(&self.0);

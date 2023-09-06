@@ -12,7 +12,6 @@ pub struct CodeGenBuilder {
     attributes: Attributes,
     build_transport: bool,
     disable_comments: HashSet<String>,
-    single_threaded: bool,
     use_arc_self: bool,
     generate_default_stubs: bool,
 }
@@ -60,12 +59,6 @@ impl CodeGenBuilder {
         self
     }
 
-    /// Support ?Sync trait for single-threaded use.
-    pub fn single_threaded(&mut self, enable: bool) -> &mut Self {
-        self.single_threaded = enable;
-        self
-    }
-
     /// Emit `Arc<Self>` instead of `&self` in service trait.
     pub fn use_arc_self(&mut self, enable: bool) -> &mut Self {
         self.use_arc_self = enable;
@@ -106,7 +99,6 @@ impl CodeGenBuilder {
             self.compile_well_known_types,
             &self.attributes,
             &self.disable_comments,
-            self.single_threaded,
             self.use_arc_self,
             self.generate_default_stubs,
         )
@@ -121,7 +113,6 @@ impl Default for CodeGenBuilder {
             attributes: Attributes::default(),
             build_transport: true,
             disable_comments: HashSet::default(),
-            single_threaded: false,
             use_arc_self: false,
             generate_default_stubs: false,
         }

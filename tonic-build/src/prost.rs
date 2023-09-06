@@ -175,7 +175,6 @@ impl prost_build::ServiceGenerator for ServiceGenerator {
                 .compile_well_known_types(self.builder.compile_well_known_types)
                 .attributes(self.builder.server_attributes.clone())
                 .disable_comments(self.builder.disable_comments.clone())
-                .single_threaded(self.builder.single_threaded)
                 .use_arc_self(self.builder.use_arc_self)
                 .generate_default_stubs(self.builder.generate_default_stubs)
                 .generate_server(&service, &self.builder.proto_path);

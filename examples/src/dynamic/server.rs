@@ -1,9 +1,5 @@
 use std::env;
-use tonic::transport::server::Routes;
-use tonic::{
-    transport::Server,
-    Request, Response, Status,
-};
+use tonic::{transport::server::Routes, transport::Server, Request, Response, Status};
 
 use hello_world::greeter_server::{Greeter, GreeterServer};
 use hello_world::{HelloReply, HelloRequest};

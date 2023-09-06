@@ -35,7 +35,7 @@ pub(crate) mod base64 {
     );
 }
 
-pub struct LocalBoxCloneService<T, U, E>(
+pub(crate) struct LocalBoxCloneService<T, U, E>(
     Box<
         dyn CloneService<T, Response = U, Error = E, Future = LocalBoxFuture<U, E>>
             + Send,
@@ -44,7 +44,7 @@ pub struct LocalBoxCloneService<T, U, E>(
 
 impl<T, U, E> LocalBoxCloneService<T, U, E> {
     /// Create a new `BoxCloneService`.
-    pub fn new<S>(inner: S) -> Self
+    pub(crate) fn new<S>(inner: S) -> Self
     where
         S: Service<T, Response = U, Error = E> + Clone + Send + 'static,
         S::Future: 'static,
@@ -57,7 +57,7 @@ impl<T, U, E> LocalBoxCloneService<T, U, E> {
     /// middleware.
     ///
     /// [`Layer`]: crate::Layer
-    pub fn layer<S>() -> LayerFn<fn(S) -> Self>
+    pub(crate) fn layer<S>() -> LayerFn<fn(S) -> Self>
     where
         S: Service<T, Response = U, Error = E> + Clone + Send + 'static,
         S::Future: Send + 'static,
