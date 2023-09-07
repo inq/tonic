@@ -15,6 +15,11 @@ use tonic::{transport::Server as TonicServer, Request, Response, Status};
 use tower::Service;
 use warp::Filter;
 
+#[cfg(not(feature = "current-thread"))]
+use tonic::transport::TokioExec as Exec;
+#[cfg(feature = "current-thread")]
+use tonic::transport::LocalExec as Exec;
+
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 pub mod hello_world {
@@ -37,7 +42,8 @@ use echo::{
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,
@@ -53,7 +59,8 @@ impl Greeter for MyGreeter {
 #[derive(Default)]
 pub struct MyEcho;
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Echo for MyEcho {
     async fn unary_echo(
         &self,
@@ -71,6 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut warp = warp::service(warp::path("hello").map(|| "hello, world!"));
 
     Server::bind(&addr)
+        .executor(Exec)
         .serve(make_service_fn(move |_| {
             let greeter = GreeterServer::new(MyGreeter::default());
             let echo = EchoServer::new(MyEcho::default());
@@ -110,10 +118,13 @@ enum EitherBody<A, B> {
     Right(B),
 }
 
+macro_rules! define_either_body {
+($($maybe_send: tt)?) => {
+
 impl<A, B> http_body::Body for EitherBody<A, B>
 where
-    A: http_body::Body + Send + Unpin,
-    B: http_body::Body<Data = A::Data> + Send + Unpin,
+    A: http_body::Body + $($maybe_send +)* Unpin,
+    B: http_body::Body<Data = A::Data> + $($maybe_send +)* Unpin,
     A::Error: Into<Error>,
     B::Error: Into<Error>,
 {
@@ -147,6 +158,14 @@ where
         }
     }
 }
+
+}
+}
+
+#[cfg(not(feature = "current-thread"))]
+define_either_body!(Send);
+#[cfg(feature = "current-thread")]
+define_either_body!();
 
 fn map_option_err<T, U: Into<Error>>(err: Option<Result<T, U>>) -> Option<Result<T, Error>> {
     err.map(|e| e.map_err(Into::into))

@@ -23,4 +23,3 @@ pub(crate) use self::tls::{TlsAcceptor, TlsConnector};
 pub(crate) use self::user_agent::UserAgent;
 
 pub use self::router::Routes;
-pub use self::router::RoutesBuilder;

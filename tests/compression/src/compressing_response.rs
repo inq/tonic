@@ -1,7 +1,12 @@
 use super::*;
 use tonic::codec::CompressionEncoding;
 
-#[tokio::test(flavor = "multi_thread")]
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
+#[tonic_test::test(flavor = "multi_thread")]
 async fn client_enabled_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -37,7 +42,7 @@ async fn client_enabled_server_enabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()
@@ -70,7 +75,7 @@ async fn client_enabled_server_enabled() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tonic_test::test(flavor = "multi_thread")]
 async fn client_enabled_server_disabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -78,7 +83,7 @@ async fn client_enabled_server_disabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()
@@ -111,7 +116,7 @@ async fn client_enabled_server_disabled() {
     assert!(bytes_sent > UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tonic_test::test(flavor = "multi_thread")]
 async fn client_disabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -144,7 +149,7 @@ async fn client_disabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()
@@ -176,7 +181,7 @@ async fn client_disabled() {
     assert!(bytes_sent > UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tonic_test::test(flavor = "multi_thread")]
 async fn server_replying_with_unsupported_encoding() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -190,7 +195,7 @@ async fn server_replying_with_unsupported_encoding() {
         response
     }
 
-    tokio::spawn(async move {
+    spawn_task(async move {
         Server::builder()
             .layer(
                 ServiceBuilder::new()
@@ -214,7 +219,7 @@ async fn server_replying_with_unsupported_encoding() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tonic_test::test(flavor = "multi_thread")]
 async fn disabling_compression_on_single_response() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -225,7 +230,7 @@ async fn disabling_compression_on_single_response() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()
@@ -255,7 +260,7 @@ async fn disabling_compression_on_single_response() {
     assert!(bytes_sent > UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tonic_test::test(flavor = "multi_thread")]
 async fn disabling_compression_on_response_but_keeping_compression_on_stream() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -266,7 +271,7 @@ async fn disabling_compression_on_response_but_keeping_compression_on_stream() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()
@@ -311,7 +316,7 @@ async fn disabling_compression_on_response_but_keeping_compression_on_stream() {
     assert!(response_bytes_counter.load(SeqCst) < UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tonic_test::test(flavor = "multi_thread")]
 async fn disabling_compression_on_response_from_client_stream() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -322,7 +327,7 @@ async fn disabling_compression_on_response_from_client_stream() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()

@@ -7,22 +7,37 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio_stream::StreamExt;
-use tonic::{body::BoxBody, transport::NamedService, Code, Request, Response, Status};
+use tonic::{transport::NamedService, Code, Request, Response, Status};
 use tower::Service;
 
 pub use pb::test_service_server::TestServiceServer;
 pub use pb::unimplemented_service_server::UnimplementedServiceServer;
+
+#[cfg(not(feature = "current-thread"))]
+use tonic::body::BoxBody;
+#[cfg(feature = "current-thread")]
+use tonic::body::LocalBoxBody as BoxBody;
+
+#[cfg(not(feature = "current-thread"))]
+type BoxFuture<T, E> = Pin<Box<dyn Future<Output = std::result::Result<T, E>> + Send + 'static>>;
+#[cfg(feature = "current-thread")]
+type BoxFuture<T, E> = Pin<Box<dyn Future<Output = std::result::Result<T, E>> + 'static>>;
+
+#[cfg(not(feature = "current-thread"))]
+type Stream<T> =
+    Pin<Box<dyn tokio_stream::Stream<Item = std::result::Result<T, Status>> + Send + 'static>>;
+#[cfg(feature = "current-thread")]
+type Stream<T> =
+    Pin<Box<dyn tokio_stream::Stream<Item = std::result::Result<T, Status>> + 'static>>;
 
 #[derive(Default, Clone)]
 pub struct TestService;
 
 type Result<T> = std::result::Result<Response<T>, Status>;
 type Streaming<T> = Request<tonic::Streaming<T>>;
-type Stream<T> =
-    Pin<Box<dyn tokio_stream::Stream<Item = std::result::Result<T, Status>> + Send + 'static>>;
-type BoxFuture<T, E> = Pin<Box<dyn Future<Output = std::result::Result<T, E>> + Send + 'static>>;
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl pb::test_service_server::TestService for TestService {
     async fn empty_call(&self, _request: Request<Empty>) -> Result<Empty> {
         Ok(Response::new(Empty {}))
@@ -158,7 +173,8 @@ impl pb::test_service_server::TestService for TestService {
 #[derive(Default)]
 pub struct UnimplementedService;
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl pb::unimplemented_service_server::UnimplementedService for UnimplementedService {
     async fn unimplemented_call(&self, _req: Request<Empty>) -> Result<Empty> {
         Err(Status::unimplemented(""))
@@ -180,10 +196,13 @@ impl<S> EchoHeadersSvc<S> {
     }
 }
 
+macro_rules! define_echo_headers_svc {
+($($maybe_send: tt)?) => {
+
 impl<S> Service<http::Request<hyper::Body>> for EchoHeadersSvc<S>
 where
-    S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>> + Send,
-    S::Future: Send + 'static,
+    S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>>,
+    S::Future: $($maybe_send +)* 'static,
 {
     type Response = S::Response;
     type Error = S::Error;
@@ -222,6 +241,14 @@ where
         })
     }
 }
+
+}
+}
+
+#[cfg(not(feature = "current-thread"))]
+define_echo_headers_svc!(Send);
+#[cfg(feature = "current-thread")]
+define_echo_headers_svc!();
 
 pub struct MergeTrailers<B> {
     inner: B,

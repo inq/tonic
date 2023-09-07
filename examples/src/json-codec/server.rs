@@ -17,7 +17,8 @@ use hello_world::greeter_server::{Greeter, GreeterServer};
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,

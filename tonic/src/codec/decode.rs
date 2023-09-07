@@ -1,6 +1,6 @@
 use super::compression::{decompress, CompressionEncoding};
 use super::{DecodeBuf, Decoder, DEFAULT_MAX_RECV_MESSAGE_SIZE, HEADER_SIZE};
-use crate::{body::BoxBody, metadata::MetadataMap, Code, Status};
+use crate::{metadata::MetadataMap, Code, Status};
 use bytes::{Buf, BufMut, BytesMut};
 use http::StatusCode;
 use http_body::Body;
@@ -14,6 +14,11 @@ use tokio_stream::Stream;
 use tracing::{debug, trace};
 
 const BUFFER_SIZE: usize = 8 * 1024;
+
+#[cfg(not(feature = "current-thread"))]
+use crate::body::BoxBody;
+#[cfg(feature = "current-thread")]
+use crate::body::LocalBoxBody as BoxBody;
 
 /// Streaming requests and responses.
 ///
@@ -54,6 +59,9 @@ enum Direction {
     EmptyResponse,
 }
 
+macro_rules! define_decode {
+($($maybe_send: tt)?) => {
+
 impl<T> Streaming<T> {
     pub(crate) fn new_response<B, D>(
         decoder: D,
@@ -63,7 +71,7 @@ impl<T> Streaming<T> {
         max_message_size: Option<usize>,
     ) -> Self
     where
-        B: Body + Send + 'static,
+        B: Body + $($maybe_send +)* 'static,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
     {
@@ -78,7 +86,7 @@ impl<T> Streaming<T> {
 
     pub(crate) fn new_empty<B, D>(decoder: D, body: B) -> Self
     where
-        B: Body + Send + 'static,
+        B: Body + $($maybe_send +)* 'static,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
     {
@@ -93,7 +101,7 @@ impl<T> Streaming<T> {
         max_message_size: Option<usize>,
     ) -> Self
     where
-        B: Body + Send + 'static,
+        B: Body + $($maybe_send +)* 'static,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
     {
@@ -114,17 +122,18 @@ impl<T> Streaming<T> {
         max_message_size: Option<usize>,
     ) -> Self
     where
-        B: Body + Send + 'static,
+        B: Body + $($maybe_send +)* 'static,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
     {
         Self {
             decoder: Box::new(decoder),
             inner: StreamingInner {
-                body: body
-                    .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
-                    .map_err(|err| Status::map_error(err.into()))
-                    .boxed_unsync(),
+                body: BoxBody::new(
+                    body
+                        .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
+                        .map_err(|err| Status::map_error(err.into()))
+                ),
                 state: State::ReadHeader,
                 direction,
                 buf: BytesMut::with_capacity(BUFFER_SIZE),
@@ -136,6 +145,14 @@ impl<T> Streaming<T> {
         }
     }
 }
+
+}
+}
+
+#[cfg(not(feature = "current-thread"))]
+define_decode!(Send);
+#[cfg(feature = "current-thread")]
+define_decode!();
 
 impl StreamingInner {
     fn decode_chunk(&mut self) -> Result<Option<DecodeBuf<'_>>, Status> {
@@ -416,5 +433,5 @@ impl<T> fmt::Debug for Streaming<T> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "current-thread")))]
 static_assertions::assert_impl_all!(Streaming<()>: Send);

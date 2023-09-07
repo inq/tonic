@@ -1,54 +1,42 @@
-use crate::{
-    body::{boxed, BoxBody},
-    server::NamedService,
-};
+use crate::server::NamedService;
 use http::{Request, Response};
 use hyper::Body;
-use pin_project::pin_project;
 use std::{
     convert::Infallible,
     fmt,
-    future::Future,
-    pin::Pin,
-    task::{ready, Context, Poll},
+    task::{Context, Poll},
 };
-use tower::ServiceExt;
 use tower_service::Service;
 
+#[cfg(not(feature = "current-thread"))]
+type BoxBody = crate::body::BoxBody;
+#[cfg(feature = "current-thread")]
+type BoxBody = crate::body::LocalBoxBody;
+
+#[cfg(not(feature = "current-thread"))]
+type BoxCloneService = tower::util::BoxCloneService<Request<Body>, Response<BoxBody>, Infallible>;
+#[cfg(feature = "current-thread")]
+type BoxCloneService = crate::util::LocalBoxCloneService<Request<Body>, Response<BoxBody>, Infallible>;
+
+#[cfg(not(feature = "current-thread"))]
+type BoxFuture<T, E> = crate::codegen::BoxFuture<T, E>;
+#[cfg(feature = "current-thread")]
+type BoxFuture<T, E> = crate::codegen::LocalBoxFuture<T, E>;
+
+#[cfg(not(feature = "current-thread"))]
+use crate::body::empty_body;
+#[cfg(feature = "current-thread")]
+use crate::body::local_empty_body as empty_body;
+
 /// A [`Service`] router.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct Routes {
-    router: axum::Router,
+    router: matchit::Router<BoxCloneService>,
 }
 
-#[derive(Debug, Default, Clone)]
-/// Allows adding new services to routes by passing a mutable reference to this builder.
-pub struct RoutesBuilder {
-    routes: Option<Routes>,
-}
+macro_rules! register_routers {
+($($maybe_send: tt)?) => {
 
-impl RoutesBuilder {
-    /// Add a new service.
-    pub fn add_service<S>(&mut self, svc: S) -> &mut Self
-    where
-        S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
-            + NamedService
-            + Clone
-            + Send
-            + 'static,
-        S::Future: Send + 'static,
-        S::Error: Into<crate::Error> + Send,
-    {
-        let routes = self.routes.take().unwrap_or_default();
-        self.routes.replace(routes.add_service(svc));
-        self
-    }
-
-    /// Returns the routes with added services or empty [`Routes`] if no service was added
-    pub fn routes(self) -> Routes {
-        self.routes.unwrap_or_default()
-    }
-}
 impl Routes {
     /// Create a new routes with `svc` already added to it.
     pub fn new<S>(svc: S) -> Self
@@ -56,84 +44,76 @@ impl Routes {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
-        S::Future: Send + 'static,
+        S::Future: $($maybe_send +)* 'static,
         S::Error: Into<crate::Error> + Send,
     {
-        let router = axum::Router::new().fallback(unimplemented);
-        Self { router }.add_service(svc)
+        let router = matchit::Router::default();
+        let mut res = Self { router };
+        res.add_service(svc);
+        res
     }
 
     /// Add a new service.
-    pub fn add_service<S>(mut self, svc: S) -> Self
+    pub fn add_service<S>(&mut self, svc: S) -> &mut Self
     where
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
-        S::Future: Send + 'static,
+        S::Future: $($maybe_send +)* 'static,
         S::Error: Into<crate::Error> + Send,
     {
-        let svc = svc.map_response(|res| res.map(axum::body::boxed));
-        self.router = self
+        self
             .router
-            .route_service(&format!("/{}/*rest", S::NAME), svc);
+            .insert(format!("/{}/*rest", S::NAME), BoxCloneService::new(svc))
+            .unwrap();
         self
     }
+}
 
-    pub(crate) fn prepare(self) -> Self {
-        Self {
-            // this makes axum perform update some internals of the router that improves perf
-            // see https://docs.rs/axum/latest/axum/routing/struct.Router.html#a-note-about-performance
-            router: self.router.with_state(()),
-        }
-    }
+}
+}
 
-    /// Convert this `Routes` into an [`axum::Router`].
-    pub fn into_router(self) -> axum::Router {
-        self.router
+#[cfg(not(feature = "current-thread"))]
+register_routers!(Send);
+#[cfg(feature = "current-thread")]
+register_routers!();
+
+impl fmt::Debug for Routes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Routes").finish()
     }
 }
 
-async fn unimplemented() -> impl axum::response::IntoResponse {
-    let status = http::StatusCode::OK;
-    let headers = [("grpc-status", "12"), ("content-type", "application/grpc")];
-    (status, headers)
-}
-
-impl Service<Request<Body>> for Routes {
+impl Service<Request<Body>> for Routes
+{
     type Response = Response<BoxBody>;
-    type Error = crate::Error;
-    type Future = RoutesFuture;
+    type Error = Infallible;
+    type Future = BoxFuture<Self::Response, Self::Error>;
 
     #[inline]
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Infallible>> {
         Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        RoutesFuture(self.router.call(req))
-    }
-}
-
-#[pin_project]
-pub struct RoutesFuture(#[pin] axum::routing::future::RouteFuture<Body, Infallible>);
-
-impl fmt::Debug for RoutesFuture {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("RoutesFuture").finish()
-    }
-}
-
-impl Future for RoutesFuture {
-    type Output = Result<Response<BoxBody>, crate::Error>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match ready!(self.project().0.poll(cx)) {
-            Ok(res) => Ok(res.map(boxed)).into(),
-            Err(err) => match err {},
+        if let Ok(matched) = self.router.at(req.uri().path()) {
+            matched.value.clone().call(req)
+        } else {
+            Box::pin(
+                async move {
+                    Ok(
+                    Response::builder()
+                    .status(http::StatusCode::OK)
+                    .header("grpc-status", "12")
+                    .header("content-type", "application/grpc")
+                    .body(empty_body())
+                    .unwrap()
+                    )
+            })
         }
     }
 }

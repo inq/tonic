@@ -302,6 +302,11 @@ types = ["dep:tonic-types"]
 h2c = ["dep:hyper", "dep:tower", "dep:http"]
 cancellation = ["dep:tokio-util"]
 
+current-thread = [
+    "tonic-build/current-thread",
+    "tonic/current-thread",
+]
+
 full = ["gcp", "routeguide", "reflection", "autoreload", "health", "grpc-web", "tracing", "hyper-warp", "hyper-warp-multiplex", "uds", "streaming", "mock", "tower", "json-codec", "compression", "tls", "tls-rustls", "dynamic-load-balance", "timeout", "tls-client-auth", "types", "cancellation", "h2c"]
 default = ["full"]
 

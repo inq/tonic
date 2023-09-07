@@ -1,5 +1,5 @@
 use std::env;
-use tonic::{transport::server::RoutesBuilder, transport::Server, Request, Response, Status};
+use tonic::{transport::server::Routes, transport::Server, Request, Response, Status};
 
 use hello_world::greeter_server::{Greeter, GreeterServer};
 use hello_world::{HelloReply, HelloRequest};
@@ -20,7 +20,8 @@ type EchoResult<T> = Result<Response<T>, Status>;
 #[derive(Default)]
 pub struct MyEcho {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Echo for MyEcho {
     async fn unary_echo(&self, request: Request<EchoRequest>) -> EchoResult<EchoResponse> {
         println!("Got an echo request from {:?}", request.remote_addr());
@@ -31,7 +32,7 @@ impl Echo for MyEcho {
     }
 }
 
-fn init_echo(args: &[String], builder: &mut RoutesBuilder) {
+fn init_echo(args: &[String], routes: &mut Routes) {
     let enabled = args
         .into_iter()
         .find(|arg| arg.as_str() == "echo")
@@ -39,14 +40,15 @@ fn init_echo(args: &[String], builder: &mut RoutesBuilder) {
     if enabled {
         println!("Adding Echo service...");
         let svc = EchoServer::new(MyEcho::default());
-        builder.add_service(svc);
+        routes.add_service(svc);
     }
 }
 
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,
@@ -61,7 +63,7 @@ impl Greeter for MyGreeter {
     }
 }
 
-fn init_greeter(args: &[String], builder: &mut RoutesBuilder) {
+fn init_greeter(args: &[String], routes: &mut Routes) {
     let enabled = args
         .into_iter()
         .find(|arg| arg.as_str() == "greeter")
@@ -70,14 +72,14 @@ fn init_greeter(args: &[String], builder: &mut RoutesBuilder) {
     if enabled {
         println!("Adding Greeter service...");
         let svc = GreeterServer::new(MyGreeter::default());
-        builder.add_service(svc);
+        routes.add_service(svc);
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    let mut routes_builder = RoutesBuilder::default();
+    let mut routes_builder = Routes::default();
     init_greeter(&args, &mut routes_builder);
     init_echo(&args, &mut routes_builder);
 
@@ -86,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Grpc server listening on {}", addr);
 
     Server::builder()
-        .add_routes(routes_builder.routes())
+        .add_routes(routes_builder)
         .serve(addr)
         .await?;
 

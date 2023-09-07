@@ -10,7 +10,6 @@ mod tls;
 mod unix;
 
 pub use super::service::Routes;
-pub use super::service::RoutesBuilder;
 
 pub use crate::server::NamedService;
 pub use conn::{Connected, TcpConnectInfo};
@@ -36,11 +35,9 @@ use crate::transport::Error;
 
 use self::recover_error::RecoverError;
 use super::service::{GrpcTimeout, ServerIo};
-use crate::body::BoxBody;
 use bytes::Bytes;
 use http::{Request, Response};
-use http_body::Body as _;
-use hyper::{server::accept, Body};
+use hyper::{server::{accept, conn::Http}, Body};
 use pin_project::pin_project;
 use std::{
     convert::Infallible,
@@ -63,8 +60,26 @@ use tower::{
     Service, ServiceBuilder,
 };
 
-type BoxHttpBody = http_body::combinators::UnsyncBoxBody<Bytes, crate::Error>;
+#[cfg(not(feature = "current-thread"))]
+type BoxBody = crate::body::BoxBody;
+#[cfg(feature = "current-thread")]
+type BoxBody = crate::body::LocalBoxBody;
+
+#[cfg(not(feature = "current-thread"))]
 type BoxService = tower::util::BoxService<Request<Body>, Response<BoxHttpBody>, crate::Error>;
+#[cfg(feature = "current-thread")]
+type BoxService = tower::util::UnsyncBoxService<Request<Body>, Response<BoxHttpBody>, crate::Error>;
+
+#[cfg(not(feature = "current-thread"))]
+type BoxHttpBody = http_body::combinators::UnsyncBoxBody<Bytes, crate::Error>;
+#[cfg(feature = "current-thread")]
+type BoxHttpBody = crate::body::UnsendBoxBody<Bytes, crate::Error>;
+
+#[cfg(not(feature = "current-thread"))]
+use crate::transport::service::executor::TokioExec as Exec;
+#[cfg(feature = "current-thread")]
+use crate::transport::service::executor::LocalExec as Exec;
+
 type TraceInterceptor = Arc<dyn Fn(&http::Request<()>) -> tracing::Span + Send + Sync + 'static>;
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
@@ -98,7 +113,7 @@ pub struct Server<L = Identity> {
     service_builder: ServiceBuilder<L>,
 }
 
-impl Default for Server<Identity> {
+impl Default for Server {
     fn default() -> Self {
         Self {
             trace_interceptor: None,
@@ -143,6 +158,9 @@ impl Server {
         }
     }
 }
+
+macro_rules! define_server {
+($($maybe_send: tt)?) => {
 
 impl<L> Server<L> {
     /// Configure TLS for this server.
@@ -362,9 +380,9 @@ impl<L> Server<L> {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
-        S::Future: Send + 'static,
+        S::Future: $($maybe_send +)* 'static,
         L: Clone,
     {
         Router::new(self.clone(), Routes::new(svc))
@@ -383,12 +401,16 @@ impl<L> Server<L> {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
-        S::Future: Send + 'static,
+        S::Future: $($maybe_send +)* 'static,
         L: Clone,
     {
-        let routes = svc.map(Routes::new).unwrap_or_default();
+        let routes = if let Some(svc) = svc {
+            Routes::new(svc)
+        } else {
+            Default::default()
+        };
         Router::new(self.clone(), routes)
     }
 
@@ -494,15 +516,15 @@ impl<L> Server<L> {
     ) -> Result<(), super::Error>
     where
         L: Layer<S>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
-        <<L as Layer<S>>::Service as Service<Request<Body>>>::Future: Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
+        <<L as Layer<S>>::Service as Service<Request<Body>>>::Future: $($maybe_send)*,
         <<L as Layer<S>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
         I: Stream<Item = Result<IO, IE>>,
         IO: AsyncRead + AsyncWrite + Connected + Unpin + Send + 'static,
         IO::ConnectInfo: Clone + Send + Sync + 'static,
         IE: Into<crate::Error>,
         F: Future<Output = ()>,
-        ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+        ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
         ResBody::Error: Into<crate::Error>,
     {
         let trace_interceptor = self.trace_interceptor.clone();
@@ -534,7 +556,7 @@ impl<L> Server<L> {
             _io: PhantomData,
         };
 
-        let server = hyper::Server::builder(incoming)
+        let server = hyper::server::Builder::new(incoming, Http::new().with_executor(Exec))
             .http2_only(http2_only)
             .http2_initial_connection_window_size(init_connection_window_size)
             .http2_initial_stream_window_size(init_stream_window_size)
@@ -563,20 +585,18 @@ impl<L> Router<L> {
     pub(crate) fn new(server: Server<L>, routes: Routes) -> Self {
         Self { server, routes }
     }
-}
 
-impl<L> Router<L> {
     /// Add a new service to this router.
     pub fn add_service<S>(mut self, svc: S) -> Self
     where
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
-        S::Future: Send + 'static,
+        S::Future: $($maybe_send +)* 'static,
     {
-        self.routes = self.routes.add_service(svc);
+        self.routes.add_service(svc);
         self
     }
 
@@ -591,19 +611,19 @@ impl<L> Router<L> {
         S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
-            + Send
+            $(+ $maybe_send)*
             + 'static,
-        S::Future: Send + 'static,
+        S::Future: $($maybe_send +)* 'static,
     {
         if let Some(svc) = svc {
-            self.routes = self.routes.add_service(svc);
+            self.routes.add_service(svc);
         }
         self
     }
 
-    /// Convert this tonic `Router` into an axum `Router` consuming the tonic one.
-    pub fn into_router(self) -> axum::Router {
-        self.routes.into_router()
+    /// Convert this tonic `Router` into a `Service` consuming self.
+    pub fn into_router(self) -> Routes {
+        self.routes
     }
 
     /// Consume this [`Server`] creating a future that will execute the server
@@ -614,17 +634,17 @@ impl<L> Router<L> {
     pub async fn serve<ResBody>(self, addr: SocketAddr) -> Result<(), super::Error>
     where
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
-        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
+        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
-        ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+        ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
         ResBody::Error: Into<crate::Error>,
     {
         let incoming = TcpIncoming::new(addr, self.server.tcp_nodelay, self.server.tcp_keepalive)
             .map_err(super::Error::from_source)?;
         self.server
             .serve_with_shutdown::<_, _, future::Ready<()>, _, _, ResBody>(
-                self.routes.prepare(),
+                self.routes,
                 incoming,
                 None,
             )
@@ -644,16 +664,16 @@ impl<L> Router<L> {
     ) -> Result<(), super::Error>
     where
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
-        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
+        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
-        ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+        ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
         ResBody::Error: Into<crate::Error>,
     {
         let incoming = TcpIncoming::new(addr, self.server.tcp_nodelay, self.server.tcp_keepalive)
             .map_err(super::Error::from_source)?;
         self.server
-            .serve_with_shutdown(self.routes.prepare(), incoming, Some(signal))
+            .serve_with_shutdown(self.routes, incoming, Some(signal))
             .await
     }
 
@@ -673,15 +693,15 @@ impl<L> Router<L> {
         IO::ConnectInfo: Clone + Send + Sync + 'static,
         IE: Into<crate::Error>,
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
-        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
+        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
-        ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+        ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
         ResBody::Error: Into<crate::Error>,
     {
         self.server
             .serve_with_shutdown::<_, _, future::Ready<()>, _, _, ResBody>(
-                self.routes.prepare(),
+                self.routes,
                 incoming,
                 None,
             )
@@ -708,14 +728,14 @@ impl<L> Router<L> {
         IE: Into<crate::Error>,
         F: Future<Output = ()>,
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
-        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
+        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
-        ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+        ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
         ResBody::Error: Into<crate::Error>,
     {
         self.server
-            .serve_with_shutdown(self.routes.prepare(), incoming, Some(signal))
+            .serve_with_shutdown(self.routes, incoming, Some(signal))
             .await
     }
 
@@ -723,13 +743,13 @@ impl<L> Router<L> {
     pub fn into_service<ResBody>(self) -> L::Service
     where
         L: Layer<Routes>,
-        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
-        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: Send + 'static,
+        L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
+        <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Future: $($maybe_send +)* 'static,
         <<L as Layer<Routes>>::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
-        ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+        ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
         ResBody::Error: Into<crate::Error>,
     {
-        self.server.service_builder.service(self.routes.prepare())
+        self.server.service_builder.service(self.routes)
     }
 }
 
@@ -748,7 +768,7 @@ impl<S, ResBody> Service<Request<Body>> for Svc<S>
 where
     S: Service<Request<Body>, Response = Response<ResBody>>,
     S::Error: Into<crate::Error>,
-    ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+    ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
     ResBody::Error: Into<crate::Error>,
 {
     type Response = Response<BoxHttpBody>;
@@ -792,7 +812,7 @@ impl<F, E, ResBody> Future for SvcFuture<F>
 where
     F: Future<Output = Result<Response<ResBody>, E>>,
     E: Into<crate::Error>,
-    ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+    ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
     ResBody::Error: Into<crate::Error>,
 {
     type Output = Result<Response<BoxHttpBody>, crate::Error>;
@@ -802,7 +822,7 @@ where
         let _guard = this.span.enter();
 
         let response: Response<ResBody> = ready!(this.inner.poll(cx)).map_err(Into::into)?;
-        let response = response.map(|body| body.map_err(Into::into).boxed_unsync());
+        let response = response.map(|body| BoxHttpBody::new(body.map_err(Into::into)));
         Poll::Ready(Ok(response))
     }
 }
@@ -818,16 +838,16 @@ struct MakeSvc<S, IO> {
     timeout: Option<Duration>,
     inner: S,
     trace_interceptor: Option<TraceInterceptor>,
-    _io: PhantomData<fn() -> IO>,
+    _io: PhantomData<IO>,
 }
 
 impl<S, ResBody, IO> Service<&ServerIo<IO>> for MakeSvc<S, IO>
 where
     IO: Connected,
-    S: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,
-    S::Future: Send + 'static,
+    S: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
+    S::Future: $($maybe_send +)* 'static,
     S::Error: Into<crate::Error> + Send,
-    ResBody: http_body::Body<Data = Bytes> + Send + 'static,
+    ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
     ResBody::Error: Into<crate::Error>,
 {
     type Response = BoxService;
@@ -885,3 +905,11 @@ where
         future::ready(Ok(svc))
     }
 }
+
+}
+} // end of macro
+
+#[cfg(not(feature = "current-thread"))]
+define_server!(Send);
+#[cfg(feature = "current-thread")]
+define_server!();

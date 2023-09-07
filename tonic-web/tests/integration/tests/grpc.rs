@@ -13,7 +13,7 @@ use integration::pb::{test_client::TestClient, test_server::TestServer, Input};
 use integration::Svc;
 use tonic_web::GrpcWebLayer;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn smoke_unary() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -29,7 +29,7 @@ async fn smoke_unary() {
     assert!(data(&r1) == data(&r2) && data(&r2) == data(&r3) && data(&r3) == data(&r4));
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn smoke_client_stream() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -47,7 +47,7 @@ async fn smoke_client_stream() {
     assert!(data(&r1) == data(&r2) && data(&r2) == data(&r3) && data(&r3) == data(&r4));
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn smoke_server_stream() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -68,7 +68,7 @@ async fn smoke_server_stream() {
 
     assert!(r1 == r2 && r2 == r3 && r3 == r4);
 }
-#[tokio::test]
+#[tonic_test::test]
 async fn smoke_error() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -129,7 +129,10 @@ async fn spawn() -> Result<(Client, Client, Client, Client), Error> {
     let ((s1, u1), (s2, u2), (s3, u3), (s4, u4)) =
         join!(grpc(true), grpc(false), grpc_web(true), grpc_web(false));
 
-    let _ = tokio::spawn(async move { join!(s1, s2, s3, s4) });
+    #[cfg(not(feature = "current-thread"))]
+    tokio::spawn(async move { join!(s1, s2, s3, s4) });
+    #[cfg(feature = "current-thread")]
+    tokio::task::spawn_local(async move { join!(s1, s2, s3, s4) });
 
     tokio::time::sleep(Duration::from_millis(30)).await;
 

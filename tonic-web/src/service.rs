@@ -5,10 +5,7 @@ use std::task::{ready, Context, Poll};
 use http::{header, HeaderMap, HeaderValue, Method, Request, Response, StatusCode, Version};
 use hyper::Body;
 use pin_project::pin_project;
-use tonic::{
-    body::{empty_body, BoxBody},
-    server::NamedService,
-};
+use tonic::server::NamedService;
 use tower_service::Service;
 use tracing::{debug, trace};
 
@@ -17,6 +14,16 @@ use crate::call::{Encoding, GrpcWebCall};
 use crate::BoxError;
 
 const GRPC: &str = "application/grpc";
+
+#[cfg(not(feature = "current-thread"))]
+use tonic::body::BoxBody;
+#[cfg(feature = "current-thread")]
+use tonic::body::LocalBoxBody as BoxBody;
+
+#[cfg(not(feature = "current-thread"))]
+use tonic::body::empty_body;
+#[cfg(feature = "current-thread")]
+use tonic::body::local_empty_body as empty_body;
 
 /// Service implementing the grpc-web protocol.
 #[derive(Debug, Clone)]
@@ -50,7 +57,7 @@ impl<S> GrpcWebService<S> {
 
 impl<S> GrpcWebService<S>
 where
-    S: Service<Request<Body>, Response = Response<BoxBody>> + Send + 'static,
+    S: Service<Request<Body>, Response = Response<BoxBody>> + 'static,
 {
     fn response(&self, status: StatusCode) -> ResponseFuture<S::Future> {
         ResponseFuture {
@@ -68,8 +75,8 @@ where
 
 impl<S> Service<Request<Body>> for GrpcWebService<S>
 where
-    S: Service<Request<Body>, Response = Response<BoxBody>> + Send + 'static,
-    S::Future: Send + 'static,
+    S: Service<Request<Body>, Response = Response<BoxBody>> + 'static,
+    S::Future: 'static,
     S::Error: Into<BoxError> + Send,
 {
     type Response = S::Response;
@@ -161,7 +168,7 @@ enum Case<F> {
 
 impl<F, E> Future for ResponseFuture<F>
 where
-    F: Future<Output = Result<Response<BoxBody>, E>> + Send + 'static,
+    F: Future<Output = Result<Response<BoxBody>, E>> + 'static,
     E: Into<BoxError> + Send,
 {
     type Output = Result<Response<BoxBody>, E>;
@@ -278,7 +285,7 @@ mod tests {
                 .unwrap()
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn default_cors_config() {
             let mut svc = crate::enable(Svc);
             let res = svc.call(request()).await.unwrap();
@@ -286,7 +293,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK);
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn web_layer() {
             let mut svc = crate::GrpcWebLayer::new().layer(Svc);
             let res = svc.call(request()).await.unwrap();
@@ -294,7 +301,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK);
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn without_origin() {
             let mut svc = crate::enable(Svc);
 
@@ -306,7 +313,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK);
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn only_post_and_options_allowed() {
             let mut svc = crate::enable(Svc);
 
@@ -331,7 +338,7 @@ mod tests {
             }
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn grpc_web_content_types() {
             let mut svc = crate::enable(Svc);
 
@@ -360,7 +367,7 @@ mod tests {
                 .unwrap()
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn valid_grpc_web_preflight() {
             let mut svc = crate::enable(Svc);
             let res = svc.call(request()).await.unwrap();
@@ -381,7 +388,7 @@ mod tests {
                 .unwrap()
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn h2_is_ok() {
             let mut svc = crate::enable(Svc);
 
@@ -391,7 +398,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK)
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn h1_is_err() {
             let mut svc = crate::enable(Svc);
 
@@ -404,7 +411,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::BAD_REQUEST)
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn content_type_variants() {
             let mut svc = crate::enable(Svc);
 
@@ -432,7 +439,7 @@ mod tests {
                 .unwrap()
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn h1_is_err() {
             let mut svc = crate::enable(Svc);
             let res = svc.call(request()).await.unwrap();
@@ -440,7 +447,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::BAD_REQUEST)
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn h2_is_ok() {
             let mut svc = crate::enable(Svc);
             let mut req = request();

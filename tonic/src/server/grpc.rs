@@ -2,7 +2,6 @@ use crate::codec::compression::{
     CompressionEncoding, EnabledCompressionEncodings, SingleMessageCompressionOverride,
 };
 use crate::{
-    body::BoxBody,
     codec::{encode_server, Codec, Streaming},
     server::{ClientStreamingService, ServerStreamingService, StreamingService, UnaryService},
     Code, Request, Status,
@@ -10,6 +9,11 @@ use crate::{
 use http_body::Body;
 use std::fmt;
 use tokio_stream::{Stream, StreamExt};
+
+#[cfg(not(feature = "current-thread"))]
+type BoxBody = crate::body::BoxBody;
+#[cfg(feature = "current-thread")]
+type BoxBody = crate::body::LocalBoxBody;
 
 macro_rules! t {
     ($result:expr) => {
@@ -55,7 +59,12 @@ where
             max_encoding_message_size: None,
         }
     }
+}
 
+impl<T> Grpc<T>
+where
+    T: Codec,
+{
     /// Enable accepting compressed requests.
     ///
     /// If a request with an unsupported encoding is received the server will respond with
@@ -216,7 +225,15 @@ where
 
         this
     }
+}
 
+macro_rules! define_grpc {
+($($maybe_send: tt)?) => {
+
+impl<T> Grpc<T>
+where
+    T: Codec,
+    {
     /// Handle a single unary gRPC request.
     pub async fn unary<S, B>(
         &mut self,
@@ -268,7 +285,7 @@ where
     ) -> http::Response<BoxBody>
     where
         S: ServerStreamingService<T::Decode, Response = T::Encode>,
-        S::ResponseStream: Send + 'static,
+        S::ResponseStream: $($maybe_send +)* 'static,
         B: Body + Send + 'static,
         B::Error: Into<crate::Error> + Send,
     {
@@ -341,8 +358,8 @@ where
         req: http::Request<B>,
     ) -> http::Response<BoxBody>
     where
-        S: StreamingService<T::Decode, Response = T::Encode> + Send,
-        S::ResponseStream: Send + 'static,
+        S: StreamingService<T::Decode, Response = T::Encode> $(+ $maybe_send)*,
+        S::ResponseStream: $($maybe_send +)* 'static,
         B: Body + Send + 'static,
         B::Error: Into<crate::Error> + Send,
     {
@@ -428,7 +445,7 @@ where
         max_message_size: Option<usize>,
     ) -> http::Response<BoxBody>
     where
-        B: Stream<Item = Result<T::Encode, Status>> + Send + 'static,
+        B: Stream<Item = Result<T::Encode, Status>> + $($maybe_send +)* 'static,
     {
         let response = match response {
             Ok(r) => r,
@@ -472,6 +489,14 @@ where
         )
     }
 }
+
+}
+} // end of macro
+
+#[cfg(not(feature = "current-thread"))]
+define_grpc!(Send);
+#[cfg(feature = "current-thread")]
+define_grpc!();
 
 impl<T: fmt::Debug> fmt::Debug for Grpc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

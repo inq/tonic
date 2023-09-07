@@ -7,17 +7,23 @@ use integration_tests::pb::{
     test1_client, test1_server, test_client, test_server, Input, Input1, Output, Output1,
 };
 use tonic::codegen::BoxStream;
-use tonic::transport::server::RoutesBuilder;
+use tonic::transport::server::Routes;
 use tonic::{
     transport::{Endpoint, Server},
     Request, Response, Status,
 };
 
-#[tokio::test]
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
+#[tonic_test::test]
 async fn multiple_service_using_routes_builder() {
     struct Svc1;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test_server::Test for Svc1 {
         async fn unary_call(&self, _req: Request<Input>) -> Result<Response<Output>, Status> {
             Ok(Response::new(Output {}))
@@ -26,7 +32,8 @@ async fn multiple_service_using_routes_builder() {
 
     struct Svc2;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl test1_server::Test1 for Svc2 {
         async fn unary_call(&self, request: Request<Input1>) -> Result<Response<Output1>, Status> {
             Ok(Response::new(Output1 {
@@ -53,12 +60,14 @@ async fn multiple_service_using_routes_builder() {
     let svc2 = test1_server::Test1Server::new(Svc2);
 
     let (tx, rx) = oneshot::channel::<()>();
-    let mut routes_builder = RoutesBuilder::default();
-    routes_builder.add_service(svc1).add_service(svc2);
+    let mut routes_builder = Routes::default();
+    routes_builder
+        .add_service(svc1)
+        .add_service(svc2);
 
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         Server::builder()
-            .add_routes(routes_builder.routes())
+            .add_routes(routes_builder)
             .serve_with_shutdown("127.0.0.1:1400".parse().unwrap(), async { drop(rx.await) })
             .await
             .unwrap();

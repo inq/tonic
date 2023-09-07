@@ -17,6 +17,11 @@ use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
 
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
 /// Represents an error in the construction of a gRPC Reflection Service.
 #[derive(Debug)]
 pub enum Error {
@@ -316,7 +321,8 @@ struct ReflectionService {
     state: Arc<ReflectionServiceState>,
 }
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl ServerReflection for ReflectionService {
     type ServerReflectionInfoStream = ReceiverStream<Result<ServerReflectionResponse, Status>>;
 
@@ -329,7 +335,7 @@ impl ServerReflection for ReflectionService {
 
         let state = self.state.clone();
 
-        tokio::spawn(async move {
+        spawn_task(async move {
             while let Some(req) = req_rx.next().await {
                 let req = match req {
                     Ok(req) => req,

@@ -2,7 +2,12 @@ use super::*;
 use tonic::codec::CompressionEncoding;
 use tonic::Streaming;
 
-#[tokio::test(flavor = "multi_thread")]
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
+#[tonic_test::test(flavor = "multi_thread")]
 async fn client_enabled_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -11,7 +16,7 @@ async fn client_enabled_server_enabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()
@@ -56,7 +61,7 @@ async fn client_enabled_server_enabled() {
     assert!(response_bytes_counter.load(SeqCst) < UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tonic_test::test(flavor = "multi_thread")]
 async fn client_disabled_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -65,7 +70,7 @@ async fn client_disabled_server_enabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()
@@ -102,7 +107,7 @@ async fn client_disabled_server_enabled() {
     assert!(response_bytes_counter.load(SeqCst) > UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tonic_test::test(flavor = "multi_thread")]
 async fn client_enabled_server_disabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -110,7 +115,7 @@ async fn client_enabled_server_disabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    tokio::spawn({
+    spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
             Server::builder()

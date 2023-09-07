@@ -44,7 +44,8 @@ impl Svc {
     }
 }
 
-#[tonic::async_trait]
+#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
 impl test_server::Test for Svc {
     async fn compress_output_unary(&self, _req: Request<()>) -> Result<Response<SomeData>, Status> {
         let data = [0_u8; UNCOMPRESSED_MIN_BODY_SIZE];

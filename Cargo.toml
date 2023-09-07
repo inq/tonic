@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "tonic",
+  "tonic-test",
   "tonic-build",
   "tonic-health",
   "tonic-types",

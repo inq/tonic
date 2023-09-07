@@ -6,13 +6,19 @@ use tonic::{
     GrpcMethod, Request, Response, Status,
 };
 
-#[tokio::test]
+#[cfg(not(feature = "current-thread"))]
+use tokio::spawn as spawn_task;
+#[cfg(feature = "current-thread")]
+use tokio::task::spawn_local as spawn_task;
+
+#[tonic_test::test]
 async fn interceptor_retrieves_grpc_method() {
     use test_server::Test;
 
     struct Svc;
 
-    #[tonic::async_trait]
+    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
+    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
     impl Test for Svc {
         async fn unary_call(&self, _: Request<Input>) -> Result<Response<Output>, Status> {
             Ok(Response::new(Output {}))
@@ -23,7 +29,7 @@ async fn interceptor_retrieves_grpc_method() {
 
     let (tx, rx) = oneshot::channel();
     // Start the server now, second call should succeed
-    let jh = tokio::spawn(async move {
+    let jh = spawn_task(async move {
         Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1340".parse().unwrap(), async { drop(rx.await) })
