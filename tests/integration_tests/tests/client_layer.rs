@@ -14,7 +14,7 @@ use tokio::spawn as spawn_task;
 #[cfg(feature = "current-thread")]
 use tokio::task::spawn_local as spawn_task;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn connect_supports_standard_tower_layers() {
     struct Svc;
 

@@ -11,7 +11,7 @@ type Stream<T> = std::pin::Pin<
     Box<dyn tokio_stream::Stream<Item = std::result::Result<T, Status>> + Send + 'static>,
 >;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn status_from_server_stream_with_source() {
     struct Svc;
 

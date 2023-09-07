@@ -11,7 +11,7 @@ use tokio::spawn as spawn_task;
 #[cfg(feature = "current-thread")]
 use tokio::task::spawn_local as spawn_task;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn getting_connect_info() {
     struct Svc;
 
@@ -90,7 +90,7 @@ pub mod unix {
         }
     }
 
-    #[tokio::test]
+    #[tonic_test::test]
     async fn getting_connect_info() {
         let mut unix_socket_path = std::env::temp_dir();
         unix_socket_path.push("uds-integration-test");

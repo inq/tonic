@@ -118,7 +118,7 @@ fn max_message_send_size() {
     });
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn response_stream_limit() {
     let client_blob = vec![0; 1];
 
@@ -278,7 +278,7 @@ struct TestCase {
     expected_code: Option<Code>,
 }
 
-#[tokio::main]
+#[tonic_test::main]
 async fn max_message_run(case: &TestCase) -> Result<(), Status> {
     let client_blob = vec![0; case.client_blob_size];
     let server_blob = vec![0; case.server_blob_size];

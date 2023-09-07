@@ -13,7 +13,7 @@ use integration::pb::{test_client::TestClient, test_server::TestServer, Input};
 use integration::Svc;
 use tonic_web::GrpcWebLayer;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn smoke_unary() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -29,7 +29,7 @@ async fn smoke_unary() {
     assert!(data(&r1) == data(&r2) && data(&r2) == data(&r3) && data(&r3) == data(&r4));
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn smoke_client_stream() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -47,7 +47,7 @@ async fn smoke_client_stream() {
     assert!(data(&r1) == data(&r2) && data(&r2) == data(&r3) && data(&r3) == data(&r4));
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn smoke_server_stream() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -68,7 +68,7 @@ async fn smoke_server_stream() {
 
     assert!(r1 == r2 && r2 == r3 && r3 == r4);
 }
-#[tokio::test]
+#[tonic_test::test]
 async fn smoke_error() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 

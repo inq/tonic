@@ -20,6 +20,7 @@ tonic = {path = "../../tonic"}
 tracing-subscriber = {version = "0.3"}
 
 [dev-dependencies]
+tonic-test = {path = "../../tonic-test"}
 async-stream = "0.3"
 http = "0.2"
 http-body = "0.4"

@@ -8,7 +8,7 @@ use tokio::spawn as spawn_task;
 #[cfg(feature = "current-thread")]
 use tokio::task::spawn_local as spawn_task;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn cancelation_on_timeout() {
     let addr = run_service_in_background(Duration::from_secs(1), Duration::from_secs(100)).await;
 
@@ -28,7 +28,7 @@ async fn cancelation_on_timeout() {
     assert_eq!(err.code(), Code::Cancelled);
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn picks_server_timeout_if_thats_sorter() {
     let addr = run_service_in_background(Duration::from_secs(1), Duration::from_millis(100)).await;
 
@@ -47,7 +47,7 @@ async fn picks_server_timeout_if_thats_sorter() {
     assert_eq!(err.code(), Code::Cancelled);
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn picks_client_timeout_if_thats_sorter() {
     let addr = run_service_in_background(Duration::from_secs(1), Duration::from_secs(100)).await;
 

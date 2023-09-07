@@ -15,7 +15,7 @@ fn echo_requests_iter() -> impl Stream<Item = ()> {
     tokio_stream::iter(1..usize::MAX).map(|_| ())
 }
 
-#[tokio::test()]
+#[tonic_test::test()]
 async fn test_default_stubs() {
     use tonic::Code;
 

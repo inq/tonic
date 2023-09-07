@@ -203,7 +203,7 @@ mod tests {
         (health_reporter, health_service)
     }
 
-    #[tokio::test]
+    #[tonic_test::test]
     async fn test_service_check() {
         let (mut reporter, service) = make_test_service().await;
 
@@ -250,7 +250,7 @@ mod tests {
         assert_serving_status(resp.status, ServingStatus::Serving);
     }
 
-    #[tokio::test]
+    #[tonic_test::test]
     async fn test_service_watch() {
         let (mut reporter, service) = make_test_service().await;
 

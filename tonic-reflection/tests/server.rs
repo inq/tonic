@@ -27,7 +27,7 @@ pub(crate) fn get_encoded_reflection_service_fd() -> Vec<u8> {
     expected
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn test_list_services() {
     let response = make_test_reflection_request(ServerReflectionRequest {
         host: "".to_string(),
@@ -47,7 +47,7 @@ async fn test_list_services() {
     }
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn test_file_by_filename() {
     let response = make_test_reflection_request(ServerReflectionRequest {
         host: "".to_string(),
@@ -71,7 +71,7 @@ async fn test_file_by_filename() {
     }
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn test_file_containing_symbol() {
     let response = make_test_reflection_request(ServerReflectionRequest {
         host: "".to_string(),

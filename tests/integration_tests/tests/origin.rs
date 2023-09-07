@@ -22,7 +22,7 @@ use integration_tests::BoxFuture;
 #[cfg(feature = "current-thread")]
 use integration_tests::LocalBoxFuture as BoxFuture;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn writes_origin_header() {
     struct Svc;
 

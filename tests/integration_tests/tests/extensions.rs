@@ -30,7 +30,7 @@ use tokio::task::spawn_local as spawn_task;
 
 struct ExtensionValue(i32);
 
-#[tokio::test]
+#[tonic_test::test]
 async fn setting_extension_from_interceptor() {
     struct Svc;
 
@@ -76,7 +76,7 @@ async fn setting_extension_from_interceptor() {
     jh.await.unwrap();
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn setting_extension_from_tower() {
     struct Svc;
 

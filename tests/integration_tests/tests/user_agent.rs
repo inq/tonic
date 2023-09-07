@@ -11,7 +11,7 @@ use tokio::spawn as spawn_task;
 #[cfg(feature = "current-thread")]
 use tokio::task::spawn_local as spawn_task;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn writes_user_agent_header() {
     struct Svc;
 

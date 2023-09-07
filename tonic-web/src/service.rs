@@ -285,7 +285,7 @@ mod tests {
                 .unwrap()
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn default_cors_config() {
             let mut svc = crate::enable(Svc);
             let res = svc.call(request()).await.unwrap();
@@ -293,7 +293,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK);
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn web_layer() {
             let mut svc = crate::GrpcWebLayer::new().layer(Svc);
             let res = svc.call(request()).await.unwrap();
@@ -301,7 +301,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK);
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn without_origin() {
             let mut svc = crate::enable(Svc);
 
@@ -313,7 +313,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK);
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn only_post_and_options_allowed() {
             let mut svc = crate::enable(Svc);
 
@@ -338,7 +338,7 @@ mod tests {
             }
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn grpc_web_content_types() {
             let mut svc = crate::enable(Svc);
 
@@ -367,7 +367,7 @@ mod tests {
                 .unwrap()
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn valid_grpc_web_preflight() {
             let mut svc = crate::enable(Svc);
             let res = svc.call(request()).await.unwrap();
@@ -388,7 +388,7 @@ mod tests {
                 .unwrap()
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn h2_is_ok() {
             let mut svc = crate::enable(Svc);
 
@@ -398,7 +398,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::OK)
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn h1_is_err() {
             let mut svc = crate::enable(Svc);
 
@@ -411,7 +411,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::BAD_REQUEST)
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn content_type_variants() {
             let mut svc = crate::enable(Svc);
 
@@ -439,7 +439,7 @@ mod tests {
                 .unwrap()
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn h1_is_err() {
             let mut svc = crate::enable(Svc);
             let res = svc.call(request()).await.unwrap();
@@ -447,7 +447,7 @@ mod tests {
             assert_eq!(res.status(), StatusCode::BAD_REQUEST)
         }
 
-        #[tokio::test]
+        #[tonic_test::test]
         async fn h2_is_ok() {
             let mut svc = crate::enable(Svc);
             let mut req = request();

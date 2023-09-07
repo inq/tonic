@@ -17,6 +17,7 @@ tokio = {version = "1.0", features = ["macros", "rt-multi-thread", "net"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 prost = "0.12"
 tonic = {path = "../../tonic"}
+tonic-test = {path = "../../tonic-test" }
 
 [build-dependencies]
 tonic-build = {path = "../../tonic-build" }

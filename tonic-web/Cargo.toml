@@ -36,3 +36,4 @@ tracing = "0.1"
 [dev-dependencies]
 tokio = {version = "1", features = ["macros", "rt"]}
 tonic = {path = "../tonic", default-features = false, features = ["transport", "tls"]}
+tonic-test = {path = "../tonic-test"}

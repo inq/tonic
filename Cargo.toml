@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "tonic",
+  "tonic-test",
   "tonic-build",
   "tonic-health",
   "tonic-types",
@@ -28,3 +29,4 @@ members = [
   "tests/default_stubs",
 ]
 resolver = "2"
+

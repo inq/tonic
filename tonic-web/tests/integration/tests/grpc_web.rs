@@ -13,7 +13,7 @@ use integration::pb::{test_server::TestServer, Input, Output};
 use integration::Svc;
 use tonic_web::GrpcWebLayer;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn binary_request() {
     let server_url = spawn().await;
     let client = Client::new();
@@ -36,7 +36,7 @@ async fn binary_request() {
     assert_eq!(&trailers[..], b"grpc-status:0\r\n");
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn text_request() {
     let server_url = spawn().await;
     let client = Client::new();

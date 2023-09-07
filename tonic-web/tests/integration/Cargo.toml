@@ -23,6 +23,7 @@ tonic = { path = "../../../tonic" }
 
 [dev-dependencies]
 tonic-web = { path = "../../../tonic-web" }
+tonic-test = {path = "../../../tonic-test"}
 
 [build-dependencies]
 tonic-build = { path = "../../../tonic-build" }

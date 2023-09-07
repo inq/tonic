@@ -25,14 +25,14 @@ impl test_server::Test for Svc {
     }
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn connect_returns_err() {
     let res = TestClient::connect("http://thisdoesntexist").await;
 
     assert!(res.is_err());
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn connect_returns_err_via_call_after_connected() {
     let (tx, rx) = oneshot::channel();
     let sender = Arc::new(Mutex::new(Some(tx)));
@@ -63,7 +63,7 @@ async fn connect_returns_err_via_call_after_connected() {
     jh.await.unwrap();
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn connect_lazy_reconnects_after_first_failure() {
     let (tx, rx) = oneshot::channel();
     let sender = Arc::new(Mutex::new(Some(tx)));

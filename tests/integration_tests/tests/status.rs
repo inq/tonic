@@ -17,7 +17,7 @@ use tokio::spawn as spawn_task;
 #[cfg(feature = "current-thread")]
 use tokio::task::spawn_local as spawn_task;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn status_with_details() {
     struct Svc;
 
@@ -64,7 +64,7 @@ async fn status_with_details() {
     jh.await.unwrap();
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn status_with_metadata() {
     const MESSAGE: &str = "Internal error, see metadata for details";
 
@@ -135,7 +135,7 @@ type Stream<T> = std::pin::Pin<
     Box<dyn tokio_stream::Stream<Item = std::result::Result<T, Status>> + Send + 'static>,
 >;
 
-#[tokio::test]
+#[tonic_test::test]
 async fn status_from_server_stream() {
     integration_tests::trace_init();
 
@@ -184,7 +184,7 @@ async fn status_from_server_stream() {
     assert_eq!(stream.message().await.unwrap(), None);
 }
 
-#[tokio::test]
+#[tonic_test::test]
 async fn status_from_server_stream_with_source() {
     integration_tests::trace_init();
 

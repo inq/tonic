@@ -275,7 +275,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tonic_test::test]
     async fn doesnt_remove_headers_from_requests() {
         let svc = tower::service_fn(|request: http::Request<TestBody>| async move {
             assert_eq!(
@@ -309,7 +309,7 @@ mod tests {
         svc.oneshot(request).await.unwrap();
     }
 
-    #[tokio::test]
+    #[tonic_test::test]
     async fn handles_intercepted_status_as_response() {
         let message = "Blocked by the interceptor";
         let expected = Status::permission_denied(message).to_http();
@@ -330,7 +330,7 @@ mod tests {
         assert_eq!(expected.headers(), response.headers());
     }
 
-    #[tokio::test]
+    #[tonic_test::test]
     async fn doesnt_change_http_method() {
         let svc = tower::service_fn(|request: http::Request<hyper::Body>| async move {
             assert_eq!(request.method(), http::Method::OPTIONS);
