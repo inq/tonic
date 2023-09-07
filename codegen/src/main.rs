@@ -9,8 +9,14 @@ fn main() {
             .join("tonic-health"),
         &["proto/health.proto"],
         &["proto"],
+        #[cfg(not(feature = "current-thread"))]
         &PathBuf::from("src/generated"),
+        #[cfg(feature = "current-thread")]
+        &PathBuf::from("src/generated_current_thread"),
+        #[cfg(not(feature = "current-thread"))]
         &PathBuf::from("src/generated/grpc_health_v1.bin"),
+        #[cfg(feature = "current-thread")]
+        &PathBuf::from("src/generated_current_thread/grpc_health_v1.bin"),
         true,
         true,
     );
@@ -23,8 +29,14 @@ fn main() {
             .join("tonic-reflection"),
         &["proto/reflection.proto"],
         &["proto"],
+        #[cfg(not(feature = "current-thread"))]
         &PathBuf::from("src/generated"),
+        #[cfg(feature = "current-thread")]
+        &PathBuf::from("src/generated_current_thread"),
+        #[cfg(not(feature = "current-thread"))]
         &PathBuf::from("src/generated/reflection_v1alpha1.bin"),
+        #[cfg(feature = "current-thread")]
+        &PathBuf::from("src/generated_current_thread/reflection_v1alpha1.bin"),
         true,
         true,
     );
@@ -37,8 +49,14 @@ fn main() {
             .join("tonic-types"),
         &["proto/status.proto", "proto/error_details.proto"],
         &["proto"],
+        #[cfg(not(feature = "current-thread"))]
         &PathBuf::from("src/generated"),
+        #[cfg(feature = "current-thread")]
+        &PathBuf::from("src/generated_current_thread"),
+        #[cfg(not(feature = "current-thread"))]
         &PathBuf::from("src/generated/types.bin"),
+        #[cfg(feature = "current-thread")]
+        &PathBuf::from("src/generated_current_thread/types.bin"),
         false,
         false,
     );

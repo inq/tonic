@@ -80,7 +80,7 @@ pub mod health_client {
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
-        T::ResponseBody: Body<Data = Bytes> + Send + 'static,
+        T::ResponseBody: Body<Data = Bytes> + 'static,
         <T::ResponseBody as Body>::Error: Into<StdError> + Send,
     {
         pub fn new(inner: T) -> Self {
@@ -215,8 +215,8 @@ pub mod health_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with HealthServer.
-    #[async_trait]
-    pub trait Health: Send + Sync + 'static {
+    #[async_trait(?Send)]
+    pub trait Health: 'static {
         /// If the requested service is unknown, the call will fail with status
         /// NOT_FOUND.
         async fn check(
@@ -230,7 +230,6 @@ pub mod health_server {
         type WatchStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::HealthCheckResponse, tonic::Status>,
             >
-            + Send
             + 'static;
         /// Performs a watch for the serving status of the requested service.
         /// The server will immediately send back a message indicating the current
@@ -260,12 +259,12 @@ pub mod health_server {
         max_decoding_message_size: Option<usize>,
         max_encoding_message_size: Option<usize>,
     }
-    struct _Inner<T>(Arc<T>);
+    struct _Inner<T>(Rc<T>);
     impl<T: Health> HealthServer<T> {
         pub fn new(inner: T) -> Self {
-            Self::from_arc(Arc::new(inner))
+            Self::from_arc(Rc::new(inner))
         }
-        pub fn from_arc(inner: Arc<T>) -> Self {
+        pub fn from_arc(inner: Rc<T>) -> Self {
             let inner = _Inner(inner);
             Self {
                 inner,
@@ -319,9 +318,9 @@ pub mod health_server {
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::LocalBoxBody>;
         type Error = std::convert::Infallible;
-        type Future = BoxFuture<Self::Response, Self::Error>;
+        type Future = LocalBoxFuture<Self::Response, Self::Error>;
         fn poll_ready(
             &mut self,
             _cx: &mut Context<'_>,
@@ -333,13 +332,13 @@ pub mod health_server {
             match req.uri().path() {
                 "/grpc.health.v1.Health/Check" => {
                     #[allow(non_camel_case_types)]
-                    struct CheckSvc<T: Health>(pub Arc<T>);
+                    struct CheckSvc<T: Health>(pub Rc<T>);
                     impl<
                         T: Health,
                     > tonic::server::UnaryService<super::HealthCheckRequest>
                     for CheckSvc<T> {
                         type Response = super::HealthCheckResponse;
-                        type Future = BoxFuture<
+                        type Future = LocalBoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
@@ -347,7 +346,7 @@ pub mod health_server {
                             &mut self,
                             request: tonic::Request<super::HealthCheckRequest>,
                         ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
+                            let inner = Rc::clone(&self.0);
                             let fut = async move {
                                 <T as Health>::check(&inner, request).await
                             };
@@ -379,14 +378,14 @@ pub mod health_server {
                 }
                 "/grpc.health.v1.Health/Watch" => {
                     #[allow(non_camel_case_types)]
-                    struct WatchSvc<T: Health>(pub Arc<T>);
+                    struct WatchSvc<T: Health>(pub Rc<T>);
                     impl<
                         T: Health,
                     > tonic::server::ServerStreamingService<super::HealthCheckRequest>
                     for WatchSvc<T> {
                         type Response = super::HealthCheckResponse;
                         type ResponseStream = T::WatchStream;
-                        type Future = BoxFuture<
+                        type Future = LocalBoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
@@ -394,7 +393,7 @@ pub mod health_server {
                             &mut self,
                             request: tonic::Request<super::HealthCheckRequest>,
                         ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
+                            let inner = Rc::clone(&self.0);
                             let fut = async move {
                                 <T as Health>::watch(&inner, request).await
                             };
@@ -431,7 +430,7 @@ pub mod health_server {
                                 .status(200)
                                 .header("grpc-status", "12")
                                 .header("content-type", "application/grpc")
-                                .body(tonic::body::empty_body())
+                                .body(tonic::body::local_empty_body())
                                 .unwrap(),
                         )
                     })
@@ -453,7 +452,7 @@ pub mod health_server {
     }
     impl<T: Health> Clone for _Inner<T> {
         fn clone(&self) -> Self {
-            Self(Arc::clone(&self.0))
+            Self(Rc::clone(&self.0))
         }
     }
     impl<T: std::fmt::Debug> std::fmt::Debug for _Inner<T> {

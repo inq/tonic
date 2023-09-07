@@ -177,7 +177,7 @@ pub mod server_reflection_client {
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
-        T::ResponseBody: Body<Data = Bytes> + Send + 'static,
+        T::ResponseBody: Body<Data = Bytes> + 'static,
         <T::ResponseBody as Body>::Error: Into<StdError> + Send,
     {
         pub fn new(inner: T) -> Self {
@@ -279,8 +279,8 @@ pub mod server_reflection_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with ServerReflectionServer.
-    #[async_trait]
-    pub trait ServerReflection: Send + Sync + 'static {
+    #[async_trait(?Send)]
+    pub trait ServerReflection: 'static {
         /// Server streaming response type for the ServerReflectionInfo method.
         type ServerReflectionInfoStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<
@@ -288,7 +288,6 @@ pub mod server_reflection_server {
                     tonic::Status,
                 >,
             >
-            + Send
             + 'static;
         /// The reflection service is structured as a bidirectional stream, ensuring
         /// all related requests go to a single server.
@@ -308,12 +307,12 @@ pub mod server_reflection_server {
         max_decoding_message_size: Option<usize>,
         max_encoding_message_size: Option<usize>,
     }
-    struct _Inner<T>(Arc<T>);
+    struct _Inner<T>(Rc<T>);
     impl<T: ServerReflection> ServerReflectionServer<T> {
         pub fn new(inner: T) -> Self {
-            Self::from_arc(Arc::new(inner))
+            Self::from_arc(Rc::new(inner))
         }
-        pub fn from_arc(inner: Arc<T>) -> Self {
+        pub fn from_arc(inner: Rc<T>) -> Self {
             let inner = _Inner(inner);
             Self {
                 inner,
@@ -367,9 +366,9 @@ pub mod server_reflection_server {
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::LocalBoxBody>;
         type Error = std::convert::Infallible;
-        type Future = BoxFuture<Self::Response, Self::Error>;
+        type Future = LocalBoxFuture<Self::Response, Self::Error>;
         fn poll_ready(
             &mut self,
             _cx: &mut Context<'_>,
@@ -381,14 +380,14 @@ pub mod server_reflection_server {
             match req.uri().path() {
                 "/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo" => {
                     #[allow(non_camel_case_types)]
-                    struct ServerReflectionInfoSvc<T: ServerReflection>(pub Arc<T>);
+                    struct ServerReflectionInfoSvc<T: ServerReflection>(pub Rc<T>);
                     impl<
                         T: ServerReflection,
                     > tonic::server::StreamingService<super::ServerReflectionRequest>
                     for ServerReflectionInfoSvc<T> {
                         type Response = super::ServerReflectionResponse;
                         type ResponseStream = T::ServerReflectionInfoStream;
-                        type Future = BoxFuture<
+                        type Future = LocalBoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
@@ -398,7 +397,7 @@ pub mod server_reflection_server {
                                 tonic::Streaming<super::ServerReflectionRequest>,
                             >,
                         ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
+                            let inner = Rc::clone(&self.0);
                             let fut = async move {
                                 <T as ServerReflection>::server_reflection_info(
                                         &inner,
@@ -439,7 +438,7 @@ pub mod server_reflection_server {
                                 .status(200)
                                 .header("grpc-status", "12")
                                 .header("content-type", "application/grpc")
-                                .body(tonic::body::empty_body())
+                                .body(tonic::body::local_empty_body())
                                 .unwrap(),
                         )
                     })
@@ -461,7 +460,7 @@ pub mod server_reflection_server {
     }
     impl<T: ServerReflection> Clone for _Inner<T> {
         fn clone(&self) -> Self {
-            Self(Arc::clone(&self.0))
+            Self(Rc::clone(&self.0))
         }
     }
     impl<T: std::fmt::Debug> std::fmt::Debug for _Inner<T> {

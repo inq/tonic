@@ -23,6 +23,7 @@
 
 use std::fmt::{Display, Formatter};
 
+#[cfg(not(feature = "current-thread"))]
 mod generated {
     #![allow(unreachable_pub)]
     #![allow(missing_docs)]
@@ -43,10 +44,34 @@ mod generated {
         }
     }
 }
+#[cfg(feature = "current-thread")]
+mod generated_current_thread {
+    #![allow(unreachable_pub)]
+    #![allow(missing_docs)]
+    #[rustfmt::skip]
+    pub mod grpc_health_v1;
+
+    /// Byte encoded FILE_DESCRIPTOR_SET.
+    pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("generated_current_thread/grpc_health_v1.bin");
+
+    #[cfg(test)]
+    mod tests {
+        use super::FILE_DESCRIPTOR_SET;
+        use prost::Message as _;
+
+        #[test]
+        fn file_descriptor_set_is_valid() {
+            prost_types::FileDescriptorSet::decode(FILE_DESCRIPTOR_SET).unwrap();
+        }
+    }
+}
 
 /// Generated protobuf types from the `grpc.health.v1` package.
 pub mod pb {
+    #[cfg(not(feature = "current-thread"))]
     pub use crate::generated::{grpc_health_v1::*, FILE_DESCRIPTOR_SET};
+    #[cfg(feature = "current-thread")]
+    pub use crate::generated_current_thread::{grpc_health_v1::*, FILE_DESCRIPTOR_SET};
 }
 
 pub mod server;
