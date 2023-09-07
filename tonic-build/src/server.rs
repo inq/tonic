@@ -507,6 +507,10 @@ fn generate_unary<T: Method>(
     let rc_type = quote!(Arc);
     #[cfg(feature = "current-thread")]
     let rc_type = quote!(Rc);
+    #[cfg(not(feature = "current-thread"))]
+    let box_future_type = quote!(BoxFuture);
+    #[cfg(feature = "current-thread")]
+    let box_future_type = quote!(LocalBoxFuture);
 
     let inner_arg = if use_arc_self {
         quote!(inner)
@@ -520,10 +524,7 @@ fn generate_unary<T: Method>(
 
         impl<T: #server_trait> tonic::server::UnaryService<#request> for #service_ident<T> {
             type Response = #response;
-            #[cfg(not(feature = "current-thread"))]
-            type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
-            #[cfg(feature = "current-thread")]
-            type Future = LocalBoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+            type Future = #box_future_type<tonic::Response<Self::Response>, tonic::Status>;
 
             fn call(&mut self, request: tonic::Request<#request>) -> Self::Future {
                 let inner = #rc_type::clone(&self.0);
@@ -575,6 +576,10 @@ fn generate_server_streaming<T: Method>(
     #[cfg(feature = "current-thread")]
     let rc_type = quote!(Rc);
     #[cfg(not(feature = "current-thread"))]
+    let box_future_type = quote!(BoxFuture);
+    #[cfg(feature = "current-thread")]
+    let box_future_type = quote!(LocalBoxFuture);
+    #[cfg(not(feature = "current-thread"))]
     let box_stream_type = quote!(BoxStream);
     #[cfg(feature = "current-thread")]
     let box_stream_type = quote!(LocalBoxStream);
@@ -601,10 +606,7 @@ fn generate_server_streaming<T: Method>(
         impl<T: #server_trait> tonic::server::ServerStreamingService<#request> for #service_ident<T> {
             type Response = #response;
             #response_stream;
-            #[cfg(not(feature = "current-thread"))]
-            type Future = BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
-            #[cfg(feature = "current-thread")]
-            type Future = LocalBoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+            type Future = #box_future_type<tonic::Response<Self::ResponseStream>, tonic::Status>;
 
             fn call(&mut self, request: tonic::Request<#request>) -> Self::Future {
                 let inner = #rc_type::clone(&self.0);
@@ -726,6 +728,10 @@ fn generate_streaming<T: Method>(
     #[cfg(feature = "current-thread")]
     let rc_type = quote!(Rc);
     #[cfg(not(feature = "current-thread"))]
+    let box_future_type = quote!(BoxFuture);
+    #[cfg(feature = "current-thread")]
+    let box_future_type = quote!(LocalBoxFuture);
+    #[cfg(not(feature = "current-thread"))]
     let box_stream_type = quote!(BoxStream);
     #[cfg(feature = "current-thread")]
     let box_stream_type = quote!(LocalBoxStream);
@@ -751,10 +757,7 @@ fn generate_streaming<T: Method>(
         {
             type Response = #response;
             #response_stream;
-            #[cfg(not(feature = "current-thread"))]
-            type Future = BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
-            #[cfg(feature = "current-thread")]
-            type Future = LocalBoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+            type Future = #box_future_type<tonic::Response<Self::ResponseStream>, tonic::Status>;
 
             fn call(&mut self, request: tonic::Request<tonic::Streaming<#request>>) -> Self::Future {
                 let inner = #rc_type::clone(&self.0);
