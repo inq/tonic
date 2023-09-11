@@ -1,6 +1,8 @@
 use crate::server::NamedService;
+use crate::transport::{TokioExec, LocalExec};
 use http::{Request, Response};
 use hyper::Body;
+use std::marker::PhantomData;
 use std::{
     convert::Infallible,
     fmt,
@@ -8,49 +10,36 @@ use std::{
 };
 use tower_service::Service;
 
-#[cfg(not(feature = "current-thread"))]
-type BoxBody = crate::body::BoxBody;
-#[cfg(feature = "current-thread")]
-type BoxBody = crate::body::LocalBoxBody;
+use super::executor::{MakeBoxCloneService, BoxCloneService, HasBoxCloneService};
 
-#[cfg(not(feature = "current-thread"))]
-type BoxCloneService = tower::util::BoxCloneService<Request<Body>, Response<BoxBody>, Infallible>;
-#[cfg(feature = "current-thread")]
-type BoxCloneService = crate::util::LocalBoxCloneService<Request<Body>, Response<BoxBody>, Infallible>;
-
-#[cfg(not(feature = "current-thread"))]
-type BoxFuture<T, E> = crate::codegen::BoxFuture<T, E>;
-#[cfg(feature = "current-thread")]
-type BoxFuture<T, E> = crate::codegen::LocalBoxFuture<T, E>;
-
-#[cfg(not(feature = "current-thread"))]
-use crate::body::empty_body;
-#[cfg(feature = "current-thread")]
-use crate::body::local_empty_body as empty_body;
+pub type LocalRoutes = Routes<LocalExec>;
 
 /// A [`Service`] router.
-#[derive(Default, Clone)]
-pub struct Routes {
-    router: matchit::Router<BoxCloneService>,
+#[derive(Clone)]
+pub struct Routes<Ex = TokioExec> where Ex: HasBoxCloneService {
+    router: matchit::Router<Ex::BoxCloneService>,
+    _marker: PhantomData<Ex>,
 }
 
-macro_rules! register_routers {
-($($maybe_send: tt)?) => {
+impl<Ex> Default for Routes<Ex> where Ex: HasBoxCloneService {
+    fn default() -> Self {
+        Self {
+            router: matchit::Router::default(),
+            _marker: PhantomData,
+        }
+    }
+}
 
-impl Routes {
+impl<Ex> Routes<Ex> where Ex: HasBoxCloneService {
     /// Create a new routes with `svc` already added to it.
     pub fn new<S>(svc: S) -> Self
     where
-        S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
-            + NamedService
-            + Clone
-            $(+ $maybe_send)*
-            + 'static,
-        S::Future: $($maybe_send +)* 'static,
+        Ex: MakeBoxCloneService<S>,
+        S: Service<Request<Body>> + NamedService,
         S::Error: Into<crate::Error> + Send,
     {
         let router = matchit::Router::default();
-        let mut res = Self { router };
+        let mut res = Self { router, _marker: PhantomData };
         res.add_service(svc);
         res
     }
@@ -58,41 +47,31 @@ impl Routes {
     /// Add a new service.
     pub fn add_service<S>(&mut self, svc: S) -> &mut Self
     where
-        S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
-            + NamedService
-            + Clone
-            $(+ $maybe_send)*
-            + 'static,
-        S::Future: $($maybe_send +)* 'static,
+        Ex: MakeBoxCloneService<S>,
+        S: Service<Request<Body>> + NamedService,
         S::Error: Into<crate::Error> + Send,
     {
         self
             .router
-            .insert(format!("/{}/*rest", S::NAME), BoxCloneService::new(svc))
+            .insert(format!("/{}/*rest", S::NAME), Ex::box_clone_service(svc))
             .unwrap();
         self
     }
 }
 
-}
-}
-
-#[cfg(not(feature = "current-thread"))]
-register_routers!(Send);
-#[cfg(feature = "current-thread")]
-register_routers!();
-
-impl fmt::Debug for Routes {
+impl<Ex> fmt::Debug for Routes<Ex> where Ex: HasBoxCloneService {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Routes").finish()
     }
 }
 
-impl Service<Request<Body>> for Routes
+impl<Ex> Service<Request<Body>> for Routes<Ex>
+where
+    Ex: HasBoxCloneService,
 {
-    type Response = Response<BoxBody>;
+    type Response = Response<<Ex::BoxCloneService as BoxCloneService>::BoxBody>;
     type Error = Infallible;
-    type Future = BoxFuture<Self::Response, Self::Error>;
+    type Future = <Ex::BoxCloneService as BoxCloneService>::BoxFuture;
 
     #[inline]
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Infallible>> {
@@ -103,17 +82,7 @@ impl Service<Request<Body>> for Routes
         if let Ok(matched) = self.router.at(req.uri().path()) {
             matched.value.clone().call(req)
         } else {
-            Box::pin(
-                async move {
-                    Ok(
-                    Response::builder()
-                    .status(http::StatusCode::OK)
-                    .header("grpc-status", "12")
-                    .header("content-type", "application/grpc")
-                    .body(empty_body())
-                    .unwrap()
-                    )
-            })
+            <Ex::BoxCloneService as BoxCloneService>::empty_response()
         }
     }
 }

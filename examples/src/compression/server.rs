@@ -38,7 +38,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
 
-    Server::builder().add_service(service).serve(addr).await?;
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder.add_service(service).serve(addr).await?;
 
     Ok(())
 }

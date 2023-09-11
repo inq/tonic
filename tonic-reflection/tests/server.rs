@@ -108,7 +108,11 @@ async fn make_test_reflection_request(request: ServerReflectionRequest) -> Messa
             .build()
             .unwrap();
 
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(service)
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
                 drop(shutdown_rx.await)

@@ -43,7 +43,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .identity(server_identity)
         .client_ca_root(client_ca_cert);
 
-    Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder
         .tls_config(tls)?
         .add_service(pb::echo_server::EchoServer::new(server))
         .serve(addr)

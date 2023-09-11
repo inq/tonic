@@ -37,7 +37,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::1]:50052".parse().unwrap();
     let greeter = MyGreeter::default();
 
-    Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder
         .add_service(service)
         .add_service(proto::greeter_server::GreeterServer::new(greeter))
         .serve(addr)

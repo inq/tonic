@@ -123,3 +123,4 @@ pub use self::server::ServerTlsConfig;
 pub use self::tls::Identity;
 
 type BoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
+type LocalBoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + 'a>>;

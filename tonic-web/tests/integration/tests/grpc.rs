@@ -103,7 +103,11 @@ async fn bind() -> (TcpListener, String) {
 async fn grpc(accept_h1: bool) -> (impl Future<Output = Result<(), Error>>, String) {
     let (listener, url) = bind().await;
 
-    let fut = Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    let fut = builder
         .accept_http1(accept_h1)
         .add_service(TestServer::new(Svc))
         .serve_with_incoming(TcpListenerStream::new(listener));
@@ -114,7 +118,11 @@ async fn grpc(accept_h1: bool) -> (impl Future<Output = Result<(), Error>>, Stri
 async fn grpc_web(accept_h1: bool) -> (impl Future<Output = Result<(), Error>>, String) {
     let (listener, url) = bind().await;
 
-    let fut = Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    let fut = builder
         .accept_http1(accept_h1)
         .layer(GrpcWebLayer::new())
         .add_service(TestServer::new(Svc))

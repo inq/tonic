@@ -96,7 +96,12 @@ async fn run_services_in_background() -> (SocketAddr, SocketAddr) {
     let addr_default_stubs = listener_default_stubs.local_addr().unwrap();
 
     spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+
+        builder
             .add_service(svc)
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
             .await
@@ -104,7 +109,12 @@ async fn run_services_in_background() -> (SocketAddr, SocketAddr) {
     });
 
     spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+
+        builder
             .add_service(svc_default_stubs)
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
                 listener_default_stubs,

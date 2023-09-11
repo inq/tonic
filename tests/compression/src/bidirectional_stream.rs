@@ -26,7 +26,11 @@ async fn client_enabled_server_enabled() {
         let request_bytes_counter = request_bytes_counter.clone();
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .map_request(assert_right_encoding)

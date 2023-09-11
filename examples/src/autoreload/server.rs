@@ -33,7 +33,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("GreeterServer listening on {}", addr);
 
-    let server = Server::builder().add_service(GreeterServer::new(greeter));
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    let server = builder.add_service(GreeterServer::new(greeter));
 
     match listenfd::ListenFd::from_env().take_tcp_listener(0)? {
         Some(listener) => {

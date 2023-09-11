@@ -35,9 +35,9 @@ where
 }
 
 #[cfg(feature = "tls")]
-pub(crate) fn tcp_incoming<IO, IE, L>(
+pub(crate) fn tcp_incoming<IO, IE, Ex, L>(
     incoming: impl Stream<Item = Result<IO, IE>>,
-    server: Server<L>,
+    server: Server<Ex, L>,
 ) -> impl Stream<Item = Result<ServerIo<IO>, crate::Error>>
 where
     IO: AsyncRead + AsyncWrite + Connected + Unpin + Send + 'static,

@@ -24,7 +24,11 @@ async fn client_enabled_server_enabled() {
     spawn_task({
         let request_bytes_counter = request_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(
@@ -64,7 +68,11 @@ async fn client_enabled_server_disabled() {
     let svc = test_server::TestServer::new(Svc::default());
 
     spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
             .await
@@ -102,7 +110,11 @@ async fn client_mark_compressed_without_header_server_enabled() {
 
     spawn_task({
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .add_service(svc)
                 .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
                 .await

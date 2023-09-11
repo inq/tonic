@@ -45,7 +45,11 @@ async fn client_enabled_server_enabled() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(layer_fn(AssertCorrectAcceptEncoding))
@@ -86,7 +90,11 @@ async fn client_enabled_server_disabled() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 // no compression enable on the server so responses should not be compressed
                 .layer(
                     ServiceBuilder::new()
@@ -152,7 +160,11 @@ async fn client_disabled() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(layer_fn(AssertCorrectAcceptEncoding))
@@ -196,7 +208,11 @@ async fn server_replying_with_unsupported_encoding() {
     }
 
     spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .layer(
                 ServiceBuilder::new()
                     .map_response(add_weird_content_encoding)
@@ -233,7 +249,11 @@ async fn disabling_compression_on_single_response() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {
@@ -274,7 +294,11 @@ async fn disabling_compression_on_response_but_keeping_compression_on_stream() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {
@@ -330,7 +354,11 @@ async fn disabling_compression_on_response_from_client_stream() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {

@@ -18,6 +18,7 @@ version = "0.10.0"
 current-thread = [
     "tonic/current-thread",
 ]
+default = []
 
 [dependencies]
 base64 = "0.21"

@@ -86,7 +86,11 @@ async fn run_service_in_background(latency: Duration, server_timeout: Duration) 
     let addr = listener.local_addr().unwrap();
 
     spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .timeout(server_timeout)
             .add_service(svc)
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))

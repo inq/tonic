@@ -11,7 +11,7 @@ use tower::Service;
 /// Middleware that attempts to recover from service errors by turning them into a response built
 /// from the `Status`.
 #[derive(Debug, Clone)]
-pub(crate) struct RecoverError<S> {
+pub struct RecoverError<S> {
     inner: S,
 }
 
@@ -42,7 +42,7 @@ where
 }
 
 #[pin_project]
-pub(crate) struct ResponseFuture<F> {
+pub struct ResponseFuture<F> {
     #[pin]
     inner: F,
 }
@@ -76,7 +76,7 @@ where
 }
 
 #[pin_project]
-pub(crate) struct MaybeEmptyBody<B> {
+pub struct MaybeEmptyBody<B> {
     #[pin]
     inner: Option<B>,
 }

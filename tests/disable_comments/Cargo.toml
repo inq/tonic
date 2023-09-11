@@ -13,6 +13,7 @@ current-thread = [
     "tonic/current-thread",
     "tonic-build/current-thread",
 ]
+default = []
 
 [dependencies]
 prost = "0.12"

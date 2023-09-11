@@ -19,6 +19,7 @@ current-thread = [
     "tonic/current-thread",
     "tonic-build/current-thread",
 ]
+default = []
 
 [dependencies]
 async-stream = "0.3"

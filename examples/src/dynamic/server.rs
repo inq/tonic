@@ -1,11 +1,16 @@
 use std::env;
-use tonic::{transport::server::Routes, transport::Server, Request, Response, Status};
+use tonic::{transport::Server, Request, Response, Status};
 
 use hello_world::greeter_server::{Greeter, GreeterServer};
 use hello_world::{HelloReply, HelloRequest};
 
 use echo::echo_server::{Echo, EchoServer};
 use echo::{EchoRequest, EchoResponse};
+
+#[cfg(not(feature = "current-thread"))]
+use tonic::transport::server::Routes as Routes;
+#[cfg(feature = "current-thread")]
+use tonic::transport::server::LocalRoutes as Routes;
 
 pub mod hello_world {
     tonic::include_proto!("helloworld");
@@ -87,7 +92,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Grpc server listening on {}", addr);
 
-    Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder
         .add_routes(routes_builder)
         .serve(addr)
         .await?;

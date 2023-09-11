@@ -83,7 +83,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let greeter = GreeterServer::new(MyGreeter::default());
             let echo = EchoServer::new(MyEcho::default());
 
-            let mut tonic = TonicServer::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = TonicServer::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = TonicServer::builder().current_thread_executor();
+            let mut tonic = builder
                 .add_service(greeter)
                 .add_service(echo)
                 .into_service();

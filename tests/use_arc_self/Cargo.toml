@@ -7,10 +7,8 @@ publish = false
 version = "0.1.0"
 
 [features]
-current-thread = [
-    "tonic/current-thread",
-    "tonic-build/current-thread",
-]
+current-thread = []
+default = []
 
 [dependencies]
 tokio-stream = "0.1"

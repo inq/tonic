@@ -37,7 +37,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("GreeterServer listening on {}", addr);
 
-    Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder
         // GrpcWeb is over http1 so we must enable it.
         .accept_http1(true)
         .add_service(tonic_web::enable(greeter))

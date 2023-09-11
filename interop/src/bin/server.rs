@@ -24,7 +24,10 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     let addr = "127.0.0.1:10000".parse().unwrap();
 
+    #[cfg(not(feature = "current-thread"))]
     let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
 
     if matches.use_tls {
         let cert = std::fs::read_to_string("interop/data/server1.pem")?;

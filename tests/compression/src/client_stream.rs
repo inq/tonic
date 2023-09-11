@@ -24,7 +24,11 @@ async fn client_enabled_server_enabled() {
     spawn_task({
         let request_bytes_counter = request_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .map_request(assert_right_encoding)
@@ -70,7 +74,11 @@ async fn client_disabled_server_enabled() {
     spawn_task({
         let request_bytes_counter = request_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .map_request(assert_right_encoding)
@@ -105,7 +113,11 @@ async fn client_enabled_server_disabled() {
     let svc = test_server::TestServer::new(Svc::default());
 
     spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
             .await
@@ -140,7 +152,11 @@ async fn compressing_response_from_client_stream() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {

@@ -147,7 +147,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let svc = RouteGuideServer::new(route_guide);
 
-    Server::builder().add_service(svc).serve(addr).await?;
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder.add_service(svc).serve(addr).await?;
 
     Ok(())
 }

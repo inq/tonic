@@ -35,7 +35,7 @@ pub(crate) mod base64 {
     );
 }
 
-pub(crate) struct LocalBoxCloneService<T, U, E>(
+pub struct LocalBoxCloneService<T, U, E>(
     Box<
         dyn CloneService<T, Response = U, Error = E, Future = LocalBoxFuture<U, E>>,
     >,

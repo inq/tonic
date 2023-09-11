@@ -18,6 +18,7 @@ repository = "https://github.com/hyperium/tonic"
 version = "0.10.0"
 
 [features]
+default = []
 current-thread = [
     "tonic/current-thread",
 ]

@@ -53,7 +53,11 @@ async fn setting_extension_from_interceptor() {
     let (tx, rx) = oneshot::channel::<()>();
 
     let jh = spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1323".parse().unwrap(), async { drop(rx.await) })
             .await
@@ -98,7 +102,11 @@ async fn setting_extension_from_tower() {
     let (tx, rx) = oneshot::channel::<()>();
 
     let jh = spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1324".parse().unwrap(), async { drop(rx.await) })
             .await

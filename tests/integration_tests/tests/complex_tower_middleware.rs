@@ -24,7 +24,11 @@ async fn complex_tower_layers_work() {
 
     let svc = test_server::TestServer::new(Svc);
 
-    Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder
         .layer(MyServiceLayer::new())
         .add_service(svc)
         .serve("127.0.0.1:1322".parse().unwrap())

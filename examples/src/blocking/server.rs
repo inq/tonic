@@ -34,7 +34,11 @@ fn main() {
     let greeter = MyGreeter::default();
 
     let rt = Runtime::new().expect("failed to obtain a new RunTime object");
-    let server_future = Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    let server_future = builder
         .add_service(GreeterServer::new(greeter))
         .serve(addr);
     rt.block_on(server_future)

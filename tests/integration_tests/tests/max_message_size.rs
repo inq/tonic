@@ -152,8 +152,12 @@ async fn response_stream_limit() {
     let svc = test1_server::Test1Server::new(Svc);
 
     spawn_task(async move {
-        Server::builder()
-            .add_service(svc)
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+
+        builder.add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
             .await
             .unwrap();
@@ -322,7 +326,12 @@ async fn max_message_run(case: &TestCase) -> Result<(), Status> {
     };
 
     spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+
+        builder
             .add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
             .await

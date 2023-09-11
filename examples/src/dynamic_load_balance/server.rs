@@ -41,7 +41,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let tx = tx.clone();
 
         let server = EchoServer { addr };
-        let serve = Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        let serve = builder
             .add_service(pb::echo_server::EchoServer::new(server))
             .serve(addr);
 

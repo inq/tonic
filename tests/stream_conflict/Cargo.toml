@@ -7,10 +7,8 @@ version = "0.1.0"
 license = "MIT"
 
 [features]
-current-thread = [
-    "tonic/current-thread",
-    "tonic-build/current-thread",
-]
+current-thread = []
+default = []
 
 [dependencies]
 prost = "0.12"

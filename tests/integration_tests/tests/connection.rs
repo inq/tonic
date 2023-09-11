@@ -39,7 +39,11 @@ async fn connect_returns_err_via_call_after_connected() {
     let svc = test_server::TestServer::new(Svc(sender));
 
     let jh = spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1338".parse().unwrap(), async { drop(rx.await) })
             .await
@@ -78,7 +82,11 @@ async fn connect_lazy_reconnects_after_first_failure() {
 
     // Start the server now, second call should succeed
     let jh = spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1339".parse().unwrap(), async { drop(rx.await) })
             .await

@@ -43,7 +43,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!(message = "Starting server.", %addr);
 
-    Server::builder()
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder
         .trace_fn(|_| tracing::info_span!("helloworld_server"))
         .add_service(GreeterServer::new(greeter))
         .serve(addr)

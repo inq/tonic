@@ -26,7 +26,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let svc = pb::echo_server::EchoServer::with_interceptor(server, check_auth);
 
-    Server::builder().add_service(svc).serve(addr).await?;
+    #[cfg(not(feature = "current-thread"))]
+    let mut builder = Server::builder();
+    #[cfg(feature = "current-thread")]
+    let mut builder = Server::builder().current_thread_executor();
+    builder.add_service(svc).serve(addr).await?;
 
     Ok(())
 }

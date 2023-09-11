@@ -6,6 +6,7 @@ use tonic::Streaming;
 use tokio::spawn as spawn_task;
 #[cfg(feature = "current-thread")]
 use tokio::task::spawn_local as spawn_task;
+use tower::builder;
 
 #[tonic_test::test(flavor = "multi_thread")]
 async fn client_enabled_server_enabled() {
@@ -19,7 +20,11 @@ async fn client_enabled_server_enabled() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {
@@ -73,7 +78,11 @@ async fn client_disabled_server_enabled() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {
@@ -118,7 +127,11 @@ async fn client_enabled_server_disabled() {
     spawn_task({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            Server::builder()
+            #[cfg(not(feature = "current-thread"))]
+            let mut builder = Server::builder();
+            #[cfg(feature = "current-thread")]
+            let mut builder = Server::builder().current_thread_executor();
+            builder
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {

@@ -38,7 +38,11 @@ async fn status_with_details() {
     let (tx, rx) = oneshot::channel::<()>();
 
     let jh = spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1337".parse().unwrap(), async { drop(rx.await) })
             .await
@@ -93,7 +97,11 @@ async fn status_with_metadata() {
     let (tx, rx) = oneshot::channel::<()>();
 
     let jh = spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1338".parse().unwrap(), async { drop(rx.await) })
             .await
@@ -161,7 +169,11 @@ async fn status_from_server_stream() {
     let svc = test_stream_server::TestStreamServer::new(Svc);
 
     spawn_task(async move {
-        Server::builder()
+        #[cfg(not(feature = "current-thread"))]
+        let mut builder = Server::builder();
+        #[cfg(feature = "current-thread")]
+        let mut builder = Server::builder().current_thread_executor();
+        builder
             .add_service(svc)
             .serve("127.0.0.1:1339".parse().unwrap())
             .await
