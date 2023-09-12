@@ -13,8 +13,7 @@ type BoxStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'stati
 
 pub struct Svc;
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl Test for Svc {
     async fn unary_call(&self, req: Request<Input>) -> Result<Response<Output>, Status> {
         let req = req.into_inner();

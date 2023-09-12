@@ -6,12 +6,6 @@ publish = false
 version = "0.1.0"
 license = "MIT"
 
-[features]
-current-thread = [
-    "tonic/current-thread",
-    "tonic-build/current-thread",
-]
-
 [dependencies]
 base64 = "0.21"
 bytes = "1.0"
@@ -23,7 +17,6 @@ tonic = { path = "../../../tonic" }
 
 [dev-dependencies]
 tonic-web = { path = "../../../tonic-web" }
-tonic-test = {path = "../../../tonic-test"}
 
 [build-dependencies]
 tonic-build = { path = "../../../tonic-build" }

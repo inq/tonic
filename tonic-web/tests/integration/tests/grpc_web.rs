@@ -13,7 +13,7 @@ use integration::pb::{test_server::TestServer, Input, Output};
 use integration::Svc;
 use tonic_web::GrpcWebLayer;
 
-#[tonic_test::test]
+#[tokio::test]
 async fn binary_request() {
     let server_url = spawn().await;
     let client = Client::new();
@@ -36,7 +36,7 @@ async fn binary_request() {
     assert_eq!(&trailers[..], b"grpc-status:0\r\n");
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn text_request() {
     let server_url = spawn().await;
     let client = Client::new();
@@ -65,19 +65,8 @@ async fn spawn() -> String {
     let url = format!("http://{}", listener.local_addr().unwrap());
     let listener_stream = TcpListenerStream::new(listener);
 
-    #[cfg(not(feature = "current-thread"))]
-    tokio::spawn(async move {
+    let _ = tokio::spawn(async move {
         Server::builder()
-            .accept_http1(true)
-            .layer(GrpcWebLayer::new())
-            .add_service(TestServer::new(Svc))
-            .serve_with_incoming(listener_stream)
-            .await
-            .unwrap()
-    });
-    #[cfg(feature = "current-thread")]
-    tokio::task::spawn_local(async move {
-        Server::builder().local_executor()
             .accept_http1(true)
             .layer(GrpcWebLayer::new())
             .add_service(TestServer::new(Svc))

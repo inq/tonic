@@ -1,12 +1,7 @@
-use super::{BoxError, GrpcWebService};
+use super::{BoxBody, BoxError, GrpcWebService};
 
 use tower_layer::Layer;
 use tower_service::Service;
-
-#[cfg(not(feature = "current-thread"))]
-use tonic::body::BoxBody;
-#[cfg(feature = "current-thread")]
-use tonic::body::LocalBoxBody as BoxBody;
 
 /// Layer implementing the grpc-web protocol.
 #[derive(Debug, Clone)]
@@ -29,8 +24,9 @@ impl Default for GrpcWebLayer {
 
 impl<S> Layer<S> for GrpcWebLayer
 where
-    S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>> + 'static,
-    S::Future: 'static,
+    S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>>,
+    S: Send + 'static,
+    S::Future: Send + 'static,
     S::Error: Into<BoxError> + Send,
 {
     type Service = GrpcWebService<S>;

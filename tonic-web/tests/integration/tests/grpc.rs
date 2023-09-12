@@ -13,7 +13,7 @@ use integration::pb::{test_client::TestClient, test_server::TestServer, Input};
 use integration::Svc;
 use tonic_web::GrpcWebLayer;
 
-#[tonic_test::test]
+#[tokio::test]
 async fn smoke_unary() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -29,7 +29,7 @@ async fn smoke_unary() {
     assert!(data(&r1) == data(&r2) && data(&r2) == data(&r3) && data(&r3) == data(&r4));
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn smoke_client_stream() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -47,7 +47,7 @@ async fn smoke_client_stream() {
     assert!(data(&r1) == data(&r2) && data(&r2) == data(&r3) && data(&r3) == data(&r4));
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn smoke_server_stream() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -68,7 +68,7 @@ async fn smoke_server_stream() {
 
     assert!(r1 == r2 && r2 == r3 && r3 == r4);
 }
-#[tonic_test::test]
+#[tokio::test]
 async fn smoke_error() {
     let (mut c1, mut c2, mut c3, mut c4) = spawn().await.expect("clients");
 
@@ -103,11 +103,7 @@ async fn bind() -> (TcpListener, String) {
 async fn grpc(accept_h1: bool) -> (impl Future<Output = Result<(), Error>>, String) {
     let (listener, url) = bind().await;
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().local_executor();
-    let fut = builder
+    let fut = Server::builder()
         .accept_http1(accept_h1)
         .add_service(TestServer::new(Svc))
         .serve_with_incoming(TcpListenerStream::new(listener));
@@ -118,11 +114,7 @@ async fn grpc(accept_h1: bool) -> (impl Future<Output = Result<(), Error>>, Stri
 async fn grpc_web(accept_h1: bool) -> (impl Future<Output = Result<(), Error>>, String) {
     let (listener, url) = bind().await;
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().local_executor();
-    let fut = builder
+    let fut = Server::builder()
         .accept_http1(accept_h1)
         .layer(GrpcWebLayer::new())
         .add_service(TestServer::new(Svc))
@@ -137,10 +129,7 @@ async fn spawn() -> Result<(Client, Client, Client, Client), Error> {
     let ((s1, u1), (s2, u2), (s3, u3), (s4, u4)) =
         join!(grpc(true), grpc(false), grpc_web(true), grpc_web(false));
 
-    #[cfg(not(feature = "current-thread"))]
-    tokio::spawn(async move { join!(s1, s2, s3, s4) });
-    #[cfg(feature = "current-thread")]
-    tokio::task::spawn_local(async move { join!(s1, s2, s3, s4) });
+    let _ = tokio::spawn(async move { join!(s1, s2, s3, s4) });
 
     tokio::time::sleep(Duration::from_millis(30)).await;
 

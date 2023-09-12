@@ -109,15 +109,10 @@ mod service;
 
 use http::header::HeaderName;
 use std::time::Duration;
-use tonic::server::NamedService;
+use tonic::{body::BoxBody, server::NamedService};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_layer::Layer;
 use tower_service::Service;
-
-#[cfg(not(feature = "current-thread"))]
-use tonic::body::BoxBody;
-#[cfg(feature = "current-thread")]
-use tonic::body::LocalBoxBody as BoxBody;
 
 const DEFAULT_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 const DEFAULT_EXPOSED_HEADERS: [&str; 3] =
@@ -133,8 +128,8 @@ type BoxError = Box<dyn std::error::Error + Send + Sync>;
 pub fn enable<S>(service: S) -> CorsGrpcWeb<S>
 where
     S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>>,
-    S: Clone + 'static,
-    S::Future: 'static,
+    S: Clone + Send + 'static,
+    S::Future: Send + 'static,
     S::Error: Into<BoxError> + Send,
 {
     let cors = CorsLayer::new()
@@ -159,9 +154,6 @@ where
     tower_layer::layer_fn(|s| CorsGrpcWeb(cors.layer(s))).layer(GrpcWebService::new(service))
 }
 
-macro_rules! define_cors_grpc_web {
-($($maybe_send: tt)?) => {
-
 /// A newtype wrapper around [`GrpcWebLayer`] and [`tower_http::cors::CorsLayer`] to allow
 /// `tonic_web::enable` to implement the [`NamedService`] trait.
 #[derive(Debug, Clone)]
@@ -170,8 +162,8 @@ pub struct CorsGrpcWeb<S>(tower_http::cors::Cors<GrpcWebService<S>>);
 impl<S> Service<http::Request<hyper::Body>> for CorsGrpcWeb<S>
 where
     S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>>,
-    S: Clone + $($maybe_send +)* 'static,
-    S::Future: $($maybe_send +)* 'static,
+    S: Clone + Send + 'static,
+    S::Future: Send + 'static,
     S::Error: Into<BoxError> + Send,
 {
     type Response = S::Response;
@@ -190,15 +182,6 @@ where
         self.0.call(req)
     }
 }
-
-}
-}
-
-#[cfg(not(feature = "current-thread"))]
-define_cors_grpc_web!(Send);
-#[cfg(feature = "current-thread")]
-define_cors_grpc_web!();
-
 
 impl<S> NamedService for CorsGrpcWeb<S>
 where
