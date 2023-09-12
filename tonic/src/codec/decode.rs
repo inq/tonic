@@ -1,7 +1,7 @@
 use super::compression::{decompress, CompressionEncoding};
 use super::{DecodeBuf, Decoder, DEFAULT_MAX_RECV_MESSAGE_SIZE, HEADER_SIZE};
-use crate::transport::TokioExec;
-use crate::util::executor::{MakeBoxBody, HasBoxBody};
+use crate::transport::{LocalExec, TokioExec};
+use crate::util::executor::{HasBoxBody, BytesBody, MaybeSend, BodyExecutor};
 use crate::{metadata::MetadataMap, Code, Status};
 use bytes::{Buf, BufMut, BytesMut, Bytes};
 use http::StatusCode;
@@ -70,7 +70,7 @@ where
         max_message_size: Option<usize>,
     ) -> Self
     where
-        Ex: MakeBoxBody<B>,
+        Ex: BodyExecutor<B>,
         B: Body,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
@@ -86,7 +86,7 @@ where
 
     pub(crate) fn new_empty<B, D>(decoder: D, body: B) -> Self
     where
-        Ex: MakeBoxBody<B>,
+        Ex: BodyExecutor<B>,
         B: Body,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
@@ -102,7 +102,7 @@ where
         max_message_size: Option<usize>,
     ) -> Self
     where
-        Ex: MakeBoxBody<B>,
+        Ex: BodyExecutor<B>,
         B: Body,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
@@ -124,7 +124,7 @@ where
         max_message_size: Option<usize>,
     ) -> Self
     where
-        Ex: MakeBoxBody<B>,
+        Ex: BodyExecutor<B>,
         B: Body,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,

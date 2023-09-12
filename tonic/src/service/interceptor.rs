@@ -7,7 +7,7 @@ use crate::{
     request::SanitizeHeaders,
     Status,
 };
-use crate::util::executor::Boxed;
+use crate::util::executor::BytesBody;
 use bytes::Bytes;
 use pin_project::pin_project;
 use std::marker::PhantomData;
@@ -135,7 +135,7 @@ where
 
 impl<S, F, Ex, ReqBody, ResBody> Service<http::Request<ReqBody>> for InterceptedServiceImpl<S, F, Ex>
 where
-    Ex: Boxed<ResBody>,
+    Ex: BytesBody<ResBody>,
     ResBody: Default + http_body::Body<Data = Bytes> + 'static,
     F: Interceptor,
     S: Service<http::Request<ReqBody>, Response = http::Response<ResBody>>,
@@ -220,7 +220,7 @@ enum Kind<F> {
 
 impl<F, Ex, E, B> Future for ResponseFuture<F, Ex>
 where
-    Ex: Boxed<B>,
+    Ex: BytesBody<B>,
     F: Future<Output = Result<http::Response<B>, E>>,
     E: Into<crate::Error>,
     B: Default + http_body::Body<Data = Bytes> + 'static,
@@ -279,7 +279,7 @@ mod tests {
         }
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn doesnt_remove_headers_from_requests() {
         let svc = tower::service_fn(|request: http::Request<TestBody>| async move {
             assert_eq!(
@@ -313,7 +313,7 @@ mod tests {
         svc.oneshot(request).await.unwrap();
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn handles_intercepted_status_as_response() {
         let message = "Blocked by the interceptor";
         let expected = Status::permission_denied(message).to_http();
@@ -334,7 +334,7 @@ mod tests {
         assert_eq!(expected.headers(), response.headers());
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn doesnt_change_http_method() {
         let svc = tower::service_fn(|request: http::Request<hyper::Body>| async move {
             assert_eq!(request.method(), http::Method::OPTIONS);

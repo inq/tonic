@@ -90,7 +90,7 @@ mod tests {
     // The maximum uncompressed size in bytes for a message. Set to 2MB.
     const MAX_MESSAGE_SIZE: usize = 2 * 1024 * 1024;
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn decode() {
         let decoder = MockDecoder::default();
 
@@ -116,7 +116,7 @@ mod tests {
         assert_eq!(i, 1);
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn decode_max_message_size_exceeded() {
         let decoder = MockDecoder::default();
 
@@ -149,7 +149,7 @@ mod tests {
         assert_eq!(actual.message(), expected.message());
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn encode() {
         let encoder = MockEncoder::default();
 
@@ -173,7 +173,7 @@ mod tests {
         }
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn encode_max_message_size_exceeded() {
         let encoder = MockEncoder::default();
 
@@ -207,7 +207,7 @@ mod tests {
 
     // skip on windows because CI stumbles over our 4GB allocation
     #[cfg(not(target_family = "windows"))]
-    #[tonic_test::test]
+    #[tokio::test]
     async fn encode_too_big() {
         let encoder = MockEncoder::default();
 

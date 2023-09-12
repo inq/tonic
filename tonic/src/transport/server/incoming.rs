@@ -197,7 +197,7 @@ impl Stream for TcpIncoming {
 #[cfg(test)]
 mod tests {
     use crate::transport::server::TcpIncoming;
-    #[tonic_test::test]
+    #[tokio::test]
     async fn one_tcpincoming_at_a_time() {
         let addr = "127.0.0.1:1322".parse().unwrap();
         {

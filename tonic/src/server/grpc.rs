@@ -3,7 +3,7 @@ use crate::codec::compression::{
 };
 use crate::codec::encode::{EncodeBody, EncodedBytes};
 use crate::transport::{TokioExec, LocalExec};
-use crate::util::executor::{MaybeSend, MakeBoxBody};
+use crate::util::executor::{MaybeSend, BytesBody, MakeBoxBody, BodyExecutor};
 use crate::{
     codec::{encode_server, Codec, Streaming},
     server::{ClientStreamingService, ServerStreamingService, StreamingService, UnaryService},
@@ -248,12 +248,12 @@ where
         req: http::Request<B>,
     ) -> http::Response<Ex::BoxBody>
     where
-        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, Once<std::result::Result<T::Encode, Status>>>>>,
         S: UnaryService<T::Decode, Response = T::Encode>,
-        B: Stream<Item = Result<T::Encode, Status>> + Body + 'static,
+        B: Body + 'static,
         B::Error: Into<crate::Error> + Send,
-        Ex: MakeBoxBody<B> + MaybeSend<tokio_stream::Once<Result<T::Encode, Status>>>,
-        Ex: MakeBoxBody<tokio_stream::Once<Result<T::Encode, Status>>>,
+        Ex: BodyExecutor<B> + MaybeSend<tokio_stream::Once<Result<T::Encode, Status>>>,
+//        Ex: Boxed<tokio_stream::Once<Result<T::Encode, Status>>>,
+        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, Once<std::result::Result<T::Encode, Status>>>>>,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
             req.headers(),
@@ -294,10 +294,11 @@ where
         req: http::Request<B>,
     ) -> http::Response<Ex::BoxBody>
     where
-        Ex: MakeBoxBody<B> + MakeBoxBody<S::ResponseStream> + MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
+        Ex: BodyExecutor<B>,
+        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
         S: ServerStreamingService<T::Decode, Response = T::Encode>,
         S::ResponseStream: 'static,
-        B: Stream<Item = Result<T::Encode, Status>> + Body + 'static,
+        B: Body + 'static,
         B::Error: Into<crate::Error> + Send,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
@@ -336,11 +337,10 @@ where
         req: http::Request<B>,
     ) -> http::Response<Ex::BoxBody>
     where
-        Ex: MakeBoxBody<B>,
-        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
+        Ex: BodyExecutor<B>,
         Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, Once<Result<T::Encode, Status>>>>>,
         S: ClientStreamingService<T::Decode, Ex, Response = T::Encode>,
-        B: Stream<Item = Result<T::Encode, Status>> + Body + 'static,
+        B: Body + 'static,
         B::Error: Into<crate::Error> + Send + 'static,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
@@ -372,12 +372,11 @@ where
         req: http::Request<B>,
     ) -> http::Response<Ex::BoxBody>
     where
-        Ex: MakeBoxBody<B>,
-        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
+        Ex: BodyExecutor<B> + MaybeSend<S::ResponseStream>,
         Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
         S: StreamingService<T::Decode, Ex, Response = T::Encode>,
-        S::ResponseStream: Body<Data = Bytes, Error = Status> + 'static,
-        B: Stream<Item = Result<T::Encode, Status>> + Body,
+        S::ResponseStream: 'static,
+        B: Body + 'static,
         B::Error: Into<crate::Error> + Send,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
@@ -402,9 +401,9 @@ where
         request: http::Request<B>,
     ) -> Result<Request<T::Decode>, Status>
     where
-        Ex: MakeBoxBody<B>,
         B: Body + 'static,
         B::Error: Into<crate::Error> + Send,
+        Ex: BodyExecutor<B>,
     {
         let request_compression_encoding = self.request_encoding_if_supported(&request)?;
 
@@ -438,8 +437,8 @@ where
         request: http::Request<B>,
     ) -> Result<Request<Streaming<T::Decode, Ex>>, Status>
     where
-        Ex: MakeBoxBody<B> + MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
-        B: Stream<Item = Result<T::Encode, Status>> + Body,
+        Ex: BodyExecutor<B>,
+        B: Body,
         B::Error: Into<crate::Error> + Send,
     {
         let encoding = self.request_encoding_if_supported(&request)?;

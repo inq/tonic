@@ -27,8 +27,6 @@ impl HasBoxBody for LocalExec {
 
 pub trait MakeBoxBody<B>: MaybeSend<B> {
     fn make_box_body(body: B) -> Self::BoxBody;
-
-    fn copy_to_box_body(body: B) -> Self::BoxBody;
 }
 
 impl<B> MakeBoxBody<B> for TokioExec
@@ -40,13 +38,6 @@ where
         Self::BoxBody::new(body)
     }
 
-    fn copy_to_box_body(body: B) -> Self::BoxBody {
-        Self::BoxBody::new(
-            body
-                .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
-                .map_err(|err| Status::map_error(crate::Error::from(err)))
-        )
-    }
 
 }
 
@@ -58,22 +49,46 @@ where
     fn make_box_body(body: B) -> Self::BoxBody {
         Self::BoxBody::new(body)
     }
+}
 
+pub trait BodyExecutor<B>: MaybeSend<B> + HasBoxBody {
+    fn copy_to_box_body(body: B) -> Self::BoxBody;
+}
+
+impl<B> BodyExecutor<B> for TokioExec
+where
+    B: Body + Send + 'static,
+    B::Error: Into<crate::Error>,
+{
     fn copy_to_box_body(body: B) -> Self::BoxBody {
         Self::BoxBody::new(
             body
                 .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
-                .map_err(|err| Status::map_error(crate::Error::from(err)))
+                .map_err(Status::map_error)
         )
     }
 }
 
-pub trait Boxed<B>: MaybeSend<B> + HasBoxBody {
+impl<B> BodyExecutor<B> for LocalExec
+where
+    B: Body + 'static,
+    B::Error: Into<crate::Error>,
+{
+    fn copy_to_box_body(body: B) -> Self::BoxBody {
+        Self::BoxBody::new(
+            body
+                .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
+                .map_err(Status::map_error)
+        )
+    }
+}
+
+pub trait BytesBody<B>: MaybeSend<B> + HasBoxBody {
     /// Convert a [`http_body::Body`] into a [`BoxBody`].
     fn boxed(body: B) -> Self::BoxBody;
 }
 
-impl<B> Boxed<B> for TokioExec
+impl<B> BytesBody<B> for TokioExec
 where
     B: Body<Data = Bytes> + Send + 'static,
     B::Error: Into<crate::Error>,
@@ -83,7 +98,7 @@ where
     }
 }
 
-impl<B> Boxed<B> for LocalExec
+impl<B> BytesBody<B> for LocalExec
 where
     B: Body<Data = Bytes> + 'static,
     B::Error: Into<crate::Error>,

@@ -1,3 +1,4 @@
+use crate::transport::TokioExec;
 use crate::{Request, Response, Status, Streaming, util::executor::HasBoxBody};
 use std::future::Future;
 use tokio_stream::Stream;
@@ -66,7 +67,7 @@ where
 ///
 /// Existing tower_service::Service implementations with the correct form will
 /// automatically implement `ClientStreamingService`.
-pub trait ClientStreamingService<R, Ex>
+pub trait ClientStreamingService<R, Ex = TokioExec>
 where
     Ex: HasBoxBody,
 {
@@ -97,7 +98,7 @@ where
 ///
 /// Existing tower_service::Service implementations with the correct form will
 /// automatically implement `StreamingService`.
-pub trait StreamingService<R, Ex>
+pub trait StreamingService<R, Ex = TokioExec>
 where
     Ex: HasBoxBody,
 {

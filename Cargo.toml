@@ -25,7 +25,6 @@ members = [
   "tonic-web/tests/integration",
   "tests/service_named_result",
   "tests/use_arc_self",
-  "tests/local_executor",
   "tests/default_stubs",
 ]
 resolver = "2"

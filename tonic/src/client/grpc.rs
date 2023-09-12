@@ -1,6 +1,6 @@
 use crate::codec::compression::{CompressionEncoding, EnabledCompressionEncodings};
 use crate::transport::{TokioExec, LocalExec};
-use crate::util::executor::{MakeBoxBody, MaybeSend, HasBoxBody};
+use crate::util::executor::{BytesBody, BodyExecutor};
 use crate::{
     body::BoxBody,
     client::GrpcService,
@@ -225,7 +225,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<M2>, Status>
     where
-        Ex: MakeBoxBody<T::ResponseBody>,
+        Ex: BodyExecutor<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -245,7 +245,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<M2>, Status>
     where
-        Ex: MakeBoxBody<T::ResponseBody>,
+        Ex: BodyExecutor<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -283,7 +283,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
-        Ex: MakeBoxBody<T::ResponseBody>,
+        Ex: BodyExecutor<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -303,7 +303,7 @@ impl<T, Ex> Grpc<T, Ex> {
         mut codec: C,
     ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
-        Ex: MakeBoxBody<T::ResponseBody>,
+        Ex: BodyExecutor<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -344,7 +344,7 @@ impl<T, Ex> Grpc<T, Ex> {
         response: http::Response<T::ResponseBody>,
     ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
-        Ex: MakeBoxBody<T::ResponseBody>,
+        Ex: BodyExecutor<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
