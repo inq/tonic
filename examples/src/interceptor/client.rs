@@ -1,7 +1,7 @@
 use hello_world::greeter_client::GreeterClient;
 use hello_world::HelloRequest;
 use tonic::{
-    codegen::InterceptedServiceImpl,
+    codegen::InterceptedService,
     service::Interceptor,
     transport::{Channel, Endpoint},
     Request, Status,
@@ -54,7 +54,7 @@ async fn using_named_interceptor() -> Result<(), Box<dyn std::error::Error>> {
         .connect()
         .await?;
 
-    let client: GreeterClient<InterceptedServiceImpl<Channel, MyInterceptor>> =
+    let client: GreeterClient<InterceptedService<Channel, MyInterceptor>> =
         GreeterClient::with_interceptor(channel, MyInterceptor);
 
     Ok(())
@@ -69,7 +69,7 @@ async fn using_function_pointer_interceptro() -> Result<(), Box<dyn std::error::
         .await?;
 
     let client: GreeterClient<
-        InterceptedServiceImpl<Channel, fn(tonic::Request<()>) -> Result<tonic::Request<()>, Status>>,
+        InterceptedService<Channel, fn(tonic::Request<()>) -> Result<tonic::Request<()>, Status>>,
     > = GreeterClient::with_interceptor(channel, intercept);
 
     Ok(())
