@@ -77,7 +77,7 @@ async fn spawn() -> String {
     });
     #[cfg(feature = "current-thread")]
     tokio::task::spawn_local(async move {
-        Server::builder().current_thread_executor()
+        Server::builder().local_executor()
             .accept_http1(true)
             .layer(GrpcWebLayer::new())
             .add_service(TestServer::new(Svc))

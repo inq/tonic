@@ -27,7 +27,7 @@ async fn complex_tower_layers_work() {
     #[cfg(not(feature = "current-thread"))]
     let mut builder = Server::builder();
     #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
+    let mut builder = Server::builder().local_executor();
     builder
         .layer(MyServiceLayer::new())
         .add_service(svc)

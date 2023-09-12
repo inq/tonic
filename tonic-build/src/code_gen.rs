@@ -67,7 +67,7 @@ impl CodeGenBuilder {
     }
 
     /// Support ?Sync trait for current-thread executor usage
-    pub fn current_thread(&mut self, enable: bool) -> &mut Self {
+    pub fn local_executor(&mut self, enable: bool) -> &mut Self {
         self.current_thread = enable;
         self
     }

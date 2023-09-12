@@ -120,8 +120,7 @@ impl HealthService {
     }
 }
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl Health for HealthService {
     async fn check(
         &self,
@@ -203,7 +202,7 @@ mod tests {
         (health_reporter, health_service)
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn test_service_check() {
         let (mut reporter, service) = make_test_service().await;
 
@@ -250,7 +249,7 @@ mod tests {
         assert_serving_status(resp.status, ServingStatus::Serving);
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn test_service_watch() {
         let (mut reporter, service) = make_test_service().await;
 

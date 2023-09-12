@@ -2,12 +2,15 @@
 //!
 //! See [`Interceptor`] for more details.
 
+use crate::transport::{TokioExec, LocalExec};
 use crate::{
     request::SanitizeHeaders,
     Status,
 };
+use crate::util::executor::Boxed;
 use bytes::Bytes;
 use pin_project::pin_project;
+use std::marker::PhantomData;
 use std::{
     fmt,
     future::Future,
@@ -16,11 +19,6 @@ use std::{
 };
 use tower_layer::Layer;
 use tower_service::Service;
-
-#[cfg(not(feature = "current-thread"))]
-use crate::body::{boxed, BoxBody};
-#[cfg(feature = "current-thread")]
-use crate::body::{boxed_local as boxed, LocalBoxBody as BoxBody};
 
 /// A gRPC interceptor.
 ///
@@ -64,54 +62,66 @@ where
 /// Create a new interceptor layer.
 ///
 /// See [`Interceptor`] for more details.
-pub fn interceptor<F>(f: F) -> InterceptorLayer<F>
+pub fn interceptor<F>(f: F) -> InterceptorLayerImpl<F, TokioExec>
 where
     F: Interceptor,
 {
-    InterceptorLayer { f }
+    InterceptorLayerImpl { f, _marker: PhantomData }
 }
 
 /// A gRPC interceptor that can be used as a [`Layer`],
 /// created by calling [`interceptor`].
 ///
 /// See [`Interceptor`] for more details.
+pub type InterceptorLayer<F> = InterceptorLayerImpl<F, TokioExec>;
+pub type LocalInterceptorLayer<F> = InterceptorLayerImpl<F, LocalExec>;
+
 #[derive(Debug, Clone, Copy)]
-pub struct InterceptorLayer<F> {
+pub struct InterceptorLayerImpl<F, Ex> {
     f: F,
+    _marker: PhantomData<Ex>,
 }
 
-impl<S, F> Layer<S> for InterceptorLayer<F>
+impl<S, F, Ex> Layer<S> for InterceptorLayerImpl<F, Ex>
 where
     F: Interceptor + Clone,
 {
-    type Service = InterceptedService<S, F>;
+    type Service = InterceptedServiceImpl<S, F, Ex>;
 
     fn layer(&self, service: S) -> Self::Service {
-        InterceptedService::new(service, self.f.clone())
+        InterceptedServiceImpl::new(service, self.f.clone())
     }
 }
 
 /// A service wrapped in an interceptor middleware.
 ///
 /// See [`Interceptor`] for more details.
+pub type InterceptedService<S, F> = InterceptedServiceImpl<S, F, TokioExec>;
+
+/// A service wrapped in an interceptor middleware.
+///
+/// See [`Interceptor`] for more details.
+pub type LocalInterceptedService<S, F> = InterceptedServiceImpl<S, F, LocalExec>;
+
 #[derive(Clone, Copy)]
-pub struct InterceptedService<S, F> {
+pub struct InterceptedServiceImpl<S, F, Ex> {
     inner: S,
     f: F,
+    _marker: PhantomData<Ex>,
 }
 
-impl<S, F> InterceptedService<S, F> {
+impl<S, F, Ex> InterceptedServiceImpl<S, F, Ex> {
     /// Create a new `InterceptedService` that wraps `S` and intercepts each request with the
     /// function `F`.
     pub fn new(service: S, f: F) -> Self
     where
         F: Interceptor,
     {
-        Self { inner: service, f }
+        Self { inner: service, f, _marker: PhantomData }
     }
 }
 
-impl<S, F> fmt::Debug for InterceptedService<S, F>
+impl<S, F, Ex> fmt::Debug for InterceptedServiceImpl<S, F, Ex>
 where
     S: fmt::Debug,
 {
@@ -123,20 +133,18 @@ where
     }
 }
 
-macro_rules! define_interceptor {
-($($maybe_send: tt)?) => {
-
-impl<S, F, ReqBody, ResBody> Service<http::Request<ReqBody>> for InterceptedService<S, F>
+impl<S, F, Ex, ReqBody, ResBody> Service<http::Request<ReqBody>> for InterceptedServiceImpl<S, F, Ex>
 where
-    ResBody: Default + http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
+    Ex: Boxed<ResBody>,
+    ResBody: Default + http_body::Body<Data = Bytes> + 'static,
     F: Interceptor,
     S: Service<http::Request<ReqBody>, Response = http::Response<ResBody>>,
     S::Error: Into<crate::Error>,
     ResBody::Error: Into<crate::Error>,
 {
-    type Response = http::Response<BoxBody>;
+    type Response = http::Response<Ex::BoxBody>;
     type Error = S::Error;
-    type Future = ResponseFuture<S::Future>;
+    type Future = ResponseFuture<S::Future, Ex>;
 
     #[inline]
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -171,7 +179,7 @@ where
 }
 
 // required to use `InterceptedService` with `Router`
-impl<S, F> crate::server::NamedService for InterceptedService<S, F>
+impl<S, F, Ex> crate::server::NamedService for InterceptedServiceImpl<S, F, Ex>
 where
     S: crate::server::NamedService,
 {
@@ -181,21 +189,24 @@ where
 /// Response future for [`InterceptedService`].
 #[pin_project]
 #[derive(Debug)]
-pub struct ResponseFuture<F> {
+pub struct ResponseFuture<F, Ex> {
     #[pin]
     kind: Kind<F>,
+    _marker: PhantomData<Ex>,
 }
 
-impl<F> ResponseFuture<F> {
+impl<F, Ex> ResponseFuture<F, Ex> {
     fn future(future: F) -> Self {
         Self {
             kind: Kind::Future(future),
+            _marker: PhantomData,
         }
     }
 
     fn status(status: Status) -> Self {
         Self {
             kind: Kind::Status(Some(status)),
+            _marker: PhantomData,
         }
     }
 }
@@ -207,40 +218,33 @@ enum Kind<F> {
     Status(Option<Status>),
 }
 
-impl<F, E, B> Future for ResponseFuture<F>
+impl<F, Ex, E, B> Future for ResponseFuture<F, Ex>
 where
+    Ex: Boxed<B>,
     F: Future<Output = Result<http::Response<B>, E>>,
     E: Into<crate::Error>,
-    B: Default + http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
+    B: Default + http_body::Body<Data = Bytes> + 'static,
     B::Error: Into<crate::Error>,
 {
-    type Output = Result<http::Response<BoxBody>, E>;
+    type Output = Result<http::Response<Ex::BoxBody>, E>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.project().kind.project() {
             KindProj::Future(future) => future
                 .poll(cx)
-                .map(|result| result.map(|res| res.map(boxed))),
+                .map(|result| result.map(|res| res.map(Ex::boxed))),
             KindProj::Status(status) => {
                 let response = status
                     .take()
                     .unwrap()
-                    .to_http()
+                    .to_http_with_executor::<Ex>()
                     .map(|_| B::default())
-                    .map(boxed);
+                    .map(Ex::boxed);
                 Poll::Ready(Ok(response))
             }
         }
     }
 }
-
-}
-}
-
-#[cfg(not(feature = "current-thread"))]
-define_interceptor!(Send);
-#[cfg(feature = "current-thread")]
-define_interceptor!();
 
 #[cfg(test)]
 mod tests {
@@ -289,7 +293,7 @@ mod tests {
             Ok::<_, Status>(http::Response::new(TestBody))
         });
 
-        let svc = InterceptedService::new(svc, |request: crate::Request<()>| {
+        let svc = InterceptedServiceImpl::<_, _, TokioExec>::new(svc, |request: crate::Request<()>| {
             assert_eq!(
                 request
                     .metadata()

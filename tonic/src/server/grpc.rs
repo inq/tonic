@@ -19,7 +19,7 @@ macro_rules! t {
     ($result:expr) => {
         match $result {
             Ok(value) => value,
-            Err(status) => return status.to_http::<Ex>(),
+            Err(status) => return status.to_http_with_executor::<Ex>(),
         }
     };
 }
@@ -64,7 +64,7 @@ where
     }
 
     /// Creates a new gRPC server with the provided [`Codec`].
-    pub fn current_thread(self) -> Grpc<T, LocalExec> {
+    pub fn local_executor(self) -> Grpc<T, LocalExec> {
         Grpc {
             codec: self.codec,
             accept_compression_encodings: self.accept_compression_encodings,
@@ -469,7 +469,7 @@ where
     {
         let response = match response {
             Ok(r) => r,
-            Err(status) => return status.to_http::<Ex>(),
+            Err(status) => return status.to_http_with_executor::<Ex>(),
         };
 
         let (mut parts, body) = response.into_http().into_parts();

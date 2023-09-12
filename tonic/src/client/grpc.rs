@@ -225,7 +225,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<M2>, Status>
     where
-        Ex: MaybeSend<T::ResponseBody>,
+        Ex: MakeBoxBody<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -245,7 +245,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<M2>, Status>
     where
-        Ex: MaybeSend<T::ResponseBody>,
+        Ex: MakeBoxBody<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -283,7 +283,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
-        Ex: MaybeSend<T::ResponseBody>,
+        Ex: MakeBoxBody<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,

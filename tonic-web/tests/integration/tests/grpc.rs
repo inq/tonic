@@ -106,7 +106,7 @@ async fn grpc(accept_h1: bool) -> (impl Future<Output = Result<(), Error>>, Stri
     #[cfg(not(feature = "current-thread"))]
     let mut builder = Server::builder();
     #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
+    let mut builder = Server::builder().local_executor();
     let fut = builder
         .accept_http1(accept_h1)
         .add_service(TestServer::new(Svc))
@@ -121,7 +121,7 @@ async fn grpc_web(accept_h1: bool) -> (impl Future<Output = Result<(), Error>>, 
     #[cfg(not(feature = "current-thread"))]
     let mut builder = Server::builder();
     #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
+    let mut builder = Server::builder().local_executor();
     let fut = builder
         .accept_http1(accept_h1)
         .layer(GrpcWebLayer::new())

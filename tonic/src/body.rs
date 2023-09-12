@@ -11,26 +11,7 @@ pub type BoxBody = http_body::combinators::UnsyncBoxBody<bytes::Bytes, crate::St
 pub type LocalBoxBody = UnsendBoxBody<bytes::Bytes, crate::Status>;
 
 pub type BoxHttpBody = http_body::combinators::UnsyncBoxBody<Bytes, crate::Error>;
-#[cfg(feature = "current-thread")]
 pub type LocalBoxHttpBody = crate::body::UnsendBoxBody<Bytes, crate::Error>;
-
-/// Convert a [`http_body::Body`] into a [`BoxBody`].
-pub(crate) fn boxed<B>(body: B) -> BoxBody
-where
-    B: http_body::Body<Data = bytes::Bytes> + Send + 'static,
-    B::Error: Into<crate::Error>,
-{
-    BoxBody::new(body.map_err(crate::Status::map_error))
-}
-
-/// Convert a [`http_body::Body`] into a [`LocalBoxBody`].
-pub(crate) fn boxed_local<B>(body: B) -> LocalBoxBody
-where
-    B: http_body::Body<Data = bytes::Bytes> + 'static,
-    B::Error: Into<crate::Error>,
-{
-    LocalBoxBody::new(body.map_err(crate::Status::map_error))
-}
 
 pub fn empty_body() -> BoxBody {
     http_body::Empty::new()

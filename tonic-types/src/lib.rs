@@ -153,7 +153,6 @@
 #![doc(html_root_url = "https://docs.rs/tonic-types/0.10.0")]
 #![doc(issue_tracker_base_url = "https://github.com/hyperium/tonic/issues/")]
 
-#[cfg(not(feature = "current-thread"))]
 mod generated {
     #![allow(unreachable_pub)]
     #![allow(rustdoc::invalid_html_tags)]
@@ -174,34 +173,10 @@ mod generated {
         }
     }
 }
-#[cfg(feature = "current-thread")]
-mod generated_current_thread {
-    #![allow(unreachable_pub)]
-    #![allow(rustdoc::invalid_html_tags)]
-    #[rustfmt::skip]
-    pub mod google_rpc;
-
-    /// Byte encoded FILE_DESCRIPTOR_SET.
-    pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("generated_current_thread/types.bin");
-
-    #[cfg(test)]
-    mod tests {
-        use super::FILE_DESCRIPTOR_SET;
-        use prost::Message as _;
-
-        #[test]
-        fn file_descriptor_set_is_valid() {
-            prost_types::FileDescriptorSet::decode(FILE_DESCRIPTOR_SET).unwrap();
-        }
-    }
-}
 
 /// Useful protobuf types
 pub mod pb {
-    #[cfg(not(feature = "current-thread"))]
     pub use crate::generated::{google_rpc::*, FILE_DESCRIPTOR_SET};
-    #[cfg(feature = "current-thread")]
-    pub use crate::generated_current_thread::{google_rpc::*, FILE_DESCRIPTOR_SET};
 }
 
 pub use pb::Status;

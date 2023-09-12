@@ -81,6 +81,7 @@ mod tests {
     use crate::codec::{
         encode_server, DecodeBuf, Decoder, EncodeBuf, Encoder, Streaming, HEADER_SIZE,
     };
+    use crate::transport::TokioExec;
     use crate::{Code, Status};
     use bytes::{Buf, BufMut, BytesMut};
     use http_body::Body;
@@ -105,7 +106,7 @@ mod tests {
 
         let body = body::MockBody::new(&buf[..], 10005, 0);
 
-        let mut stream = Streaming::new_request(decoder, body, None, None);
+        let mut stream = Streaming::<_, TokioExec>::new_request(decoder, body, None, None);
 
         let mut i = 0usize;
         while let Some(output_msg) = stream.message().await.unwrap() {
@@ -131,7 +132,7 @@ mod tests {
 
         let body = body::MockBody::new(&buf[..], MAX_MESSAGE_SIZE + HEADER_SIZE + 1, 0);
 
-        let mut stream = Streaming::new_request(decoder, body, None, Some(MAX_MESSAGE_SIZE));
+        let mut stream = Streaming::<_, TokioExec>::new_request(decoder, body, None, Some(MAX_MESSAGE_SIZE));
 
         let actual = stream.message().await.unwrap_err();
 

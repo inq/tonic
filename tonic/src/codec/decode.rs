@@ -3,7 +3,7 @@ use super::{DecodeBuf, Decoder, DEFAULT_MAX_RECV_MESSAGE_SIZE, HEADER_SIZE};
 use crate::transport::TokioExec;
 use crate::util::executor::{MakeBoxBody, HasBoxBody};
 use crate::{metadata::MetadataMap, Code, Status};
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BufMut, BytesMut, Bytes};
 use http::StatusCode;
 use http_body::Body;
 use std::marker::PhantomData;
@@ -146,7 +146,10 @@ where
     }
 }
 
-impl<B> StreamingInner<B> {
+impl<B> StreamingInner<B>
+where
+    B: Body<Data = Bytes, Error = crate::Status> + Unpin,
+{
     fn decode_chunk(&mut self) -> Result<Option<DecodeBuf<'_>>, Status> {
         if let State::ReadHeader = self.state {
             if self.buf.remaining() < HEADER_SIZE {
@@ -354,7 +357,8 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn trailers(&mut self) -> Result<Option<MetadataMap>, Status> {
+    pub async fn trailers(&mut self) -> Result<Option<MetadataMap>, Status>
+    {
         // Shortcut to see if we already pulled the trailers in the stream step
         // we need to do that so that the stream can error on trailing grpc-status
         if let Some(trailers) = self.inner.trailers.take() {
@@ -434,5 +438,5 @@ where
     }
 }
 
-#[cfg(all(test, not(feature = "current-thread")))]
-static_assertions::assert_impl_all!(Streaming<()>: Send);
+#[cfg(test)]
+static_assertions::assert_impl_all!(Streaming<(), TokioExec>: Send);

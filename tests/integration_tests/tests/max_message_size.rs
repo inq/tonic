@@ -155,7 +155,7 @@ async fn response_stream_limit() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
 
         builder.add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
@@ -329,7 +329,7 @@ async fn max_message_run(case: &TestCase) -> Result<(), Status> {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
 
         builder
             .add_service(svc)

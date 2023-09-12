@@ -34,7 +34,7 @@ async fn writes_user_agent_header() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1322".parse().unwrap(), async { drop(rx.await) })

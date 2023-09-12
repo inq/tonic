@@ -1,3 +1,4 @@
+use crate::transport::{TokioExec, LocalExec};
 use crate::{metadata::MetadataMap, util::executor::HasBoxBody};
 use base64::Engine as _;
 use bytes::Bytes;
@@ -5,16 +6,6 @@ use http::header::{HeaderMap, HeaderValue};
 use percent_encoding::{percent_decode, percent_encode, AsciiSet, CONTROLS};
 use std::{borrow::Cow, error::Error, fmt, sync::Arc};
 use tracing::{debug, trace, warn};
-
-#[cfg(not(feature = "current-thread"))]
-type BoxBody = http_body::combinators::UnsyncBoxBody<Bytes, crate::Status>;
-#[cfg(feature = "current-thread")]
-type BoxBody = crate::body::UnsendBoxBody<Bytes, crate::Status>;
-
-#[cfg(not(feature = "current-thread"))]
-use crate::body::empty_body;
-#[cfg(feature = "current-thread")]
-use crate::body::local_empty_body as empty_body;
 
 const ENCODING_SET: &AsciiSet = &CONTROLS
     .add(b' ')
@@ -593,7 +584,19 @@ impl Status {
 
     #[allow(clippy::wrong_self_convention)]
     /// Build an `http::Response` from the given `Status`.
-    pub fn to_http<Ex>(self) -> http::Response<Ex::BoxBody>
+    pub fn to_http(self) -> http::Response<crate::body::BoxBody>
+    {
+        self.to_http_with_executor::<TokioExec>()
+    }
+
+    #[allow(clippy::wrong_self_convention)]
+    /// Build an `http::Response` from the given `Status`.
+    pub fn to_http_local(self) -> http::Response<crate::body::LocalBoxBody>
+    {
+        self.to_http_with_executor::<LocalExec>()
+    }
+
+    pub(crate) fn to_http_with_executor<Ex>(self) -> http::Response<Ex::BoxBody>
     where
         Ex: HasBoxBody,
     {

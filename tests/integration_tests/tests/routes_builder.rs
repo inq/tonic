@@ -69,7 +69,7 @@ async fn multiple_service_using_routes_builder() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .add_routes(routes_builder)
             .serve_with_shutdown("127.0.0.1:1400".parse().unwrap(), async { drop(rx.await) })

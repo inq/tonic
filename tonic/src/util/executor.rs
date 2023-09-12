@@ -4,7 +4,7 @@ use http_body::Body;
 use crate::{transport::{TokioExec, LocalExec}, Status, body::{empty_body, local_empty_body}};
 
 pub trait HasBoxBody {
-    type BoxBody: Body + Unpin;
+    type BoxBody: Body<Data = Bytes, Error = crate::Status> + Unpin;
 
     fn empty_body() -> Self::BoxBody;
 }
@@ -44,9 +44,10 @@ where
         Self::BoxBody::new(
             body
                 .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
-                .map_err(|err| Status::map_error(err.into()))
+                .map_err(|err| Status::map_error(crate::Error::from(err)))
         )
     }
+
 }
 
 impl<B> MakeBoxBody<B> for LocalExec
@@ -62,8 +63,33 @@ where
         Self::BoxBody::new(
             body
                 .map_data(|mut buf| buf.copy_to_bytes(buf.remaining()))
-                .map_err(|err| Status::map_error(err.into()))
+                .map_err(|err| Status::map_error(crate::Error::from(err)))
         )
+    }
+}
+
+pub trait Boxed<B>: MaybeSend<B> + HasBoxBody {
+    /// Convert a [`http_body::Body`] into a [`BoxBody`].
+    fn boxed(body: B) -> Self::BoxBody;
+}
+
+impl<B> Boxed<B> for TokioExec
+where
+    B: Body<Data = Bytes> + Send + 'static,
+    B::Error: Into<crate::Error>,
+{
+    fn boxed(body: B) -> Self::BoxBody {
+        Self::BoxBody::new(body.map_err(crate::Status::map_error))
+    }
+}
+
+impl<B> Boxed<B> for LocalExec
+where
+    B: Body<Data = Bytes> + 'static,
+    B::Error: Into<crate::Error>,
+{
+    fn boxed(body: B) -> Self::BoxBody {
+        Self::BoxBody::new(body.map_err(crate::Status::map_error))
     }
 }
 

@@ -17,9 +17,6 @@ version = "0.10.0"
 [features]
 default = ["transport"]
 transport = []
-current-thread = [
-    "tonic/current-thread",
-]
 
 [dependencies]
 async-stream = "0.3"
@@ -29,7 +26,6 @@ tokio-stream = "0.1"
 tonic = { version = "0.10", path = "../tonic", default-features = false, features = ["codegen", "prost"] }
 
 [dev-dependencies]
-tonic-test = {path = "../tonic-test"}
 tokio = {version = "1.0", features = ["rt-multi-thread", "macros"]}
 tokio-stream = "0.1"
 prost-types = "0.12"

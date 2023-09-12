@@ -45,7 +45,7 @@ async fn writes_origin_header() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .layer(OriginLayer {})
             .add_service(svc)

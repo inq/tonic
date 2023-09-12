@@ -41,7 +41,7 @@ async fn status_with_details() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1337".parse().unwrap(), async { drop(rx.await) })
@@ -100,7 +100,7 @@ async fn status_with_metadata() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1338".parse().unwrap(), async { drop(rx.await) })
@@ -172,7 +172,7 @@ async fn status_from_server_stream() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .add_service(svc)
             .serve("127.0.0.1:1339".parse().unwrap())

@@ -42,7 +42,6 @@ transport = [
   "dep:hyper-timeout",
   "dep:matchit",
 ]
-current-thread = []
 channel = []
 
 # [[bench]]
@@ -86,9 +85,6 @@ webpki-roots = { version = "0.25.0", optional = true }
 
 # compression
 flate2 = {version = "1.0", optional = true}
-
-# test
-tonic-test = {path = "../tonic-test"}
 
 [dev-dependencies]
 bencher = "0.1.5"

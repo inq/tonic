@@ -27,7 +27,7 @@ async fn client_enabled_server_enabled() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 .layer(
                     ServiceBuilder::new()
@@ -77,7 +77,7 @@ async fn client_disabled_server_enabled() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 .layer(
                     ServiceBuilder::new()
@@ -116,7 +116,7 @@ async fn client_enabled_server_disabled() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
@@ -155,7 +155,7 @@ async fn compressing_response_from_client_stream() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 .layer(
                     ServiceBuilder::new()

@@ -89,7 +89,7 @@ async fn run_service_in_background(latency: Duration, server_timeout: Duration) 
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .timeout(server_timeout)
             .add_service(svc)

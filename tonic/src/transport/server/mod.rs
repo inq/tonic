@@ -13,10 +13,8 @@ use super::{TokioExec, LocalExec};
 pub use super::service::{Routes, LocalRoutes};
 use super::service::executor::{MakeBoxCloneService, HttpServiceExecutor, HasBoxCloneService, FutureExecutor};
 
-use crate::codegen::{LocalBoxFuture};
 pub use crate::server::NamedService;
 pub use conn::{Connected, TcpConnectInfo};
-use hyper::server::accept::Accept;
 use hyper::server::conn::AddrStream;
 #[cfg(feature = "tls")]
 pub use tls::ServerTlsConfig;
@@ -64,21 +62,6 @@ use tower::{
     util::Either,
     Service, ServiceBuilder,
 };
-
-#[cfg(not(feature = "current-thread"))]
-type BoxBody = crate::body::BoxBody;
-#[cfg(feature = "current-thread")]
-type BoxBody = crate::body::LocalBoxBody;
-
-#[cfg(not(feature = "current-thread"))]
-type BoxService = tower::util::BoxService<Request<Body>, Response<BoxHttpBody>, crate::Error>;
-#[cfg(feature = "current-thread")]
-type BoxService = tower::util::UnsyncBoxService<Request<Body>, Response<BoxHttpBody>, crate::Error>;
-
-#[cfg(not(feature = "current-thread"))]
-type BoxHttpBody = http_body::combinators::UnsyncBoxBody<Bytes, crate::Error>;
-#[cfg(feature = "current-thread")]
-type BoxHttpBody = crate::body::UnsendBoxBody<Bytes, crate::Error>;
 
 type TraceInterceptor = Arc<dyn Fn(&http::Request<()>) -> tracing::Span + Send + Sync + 'static>;
 
@@ -165,8 +148,8 @@ impl Server<TokioExec> {
     }
 }
 
-impl<Ex, L> Server<Ex, L> {
-    pub fn current_thread_executor(self) -> Server<LocalExec, L> {
+impl<L> Server<TokioExec, L> {
+    pub fn local_executor(self) -> Server<LocalExec, L> {
         Server {
             service_builder: self.service_builder,
             trace_interceptor: self.trace_interceptor,
@@ -188,7 +171,9 @@ impl<Ex, L> Server<Ex, L> {
             exec: LocalExec,
         }
     }
+}
 
+impl<Ex, L> Server<Ex, L> {
     /// Configure TLS for this server.
     #[cfg(feature = "tls")]
     #[cfg_attr(docsrs, doc(cfg(feature = "tls")))]

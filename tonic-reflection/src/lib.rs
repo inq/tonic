@@ -15,7 +15,6 @@
 #![doc(test(no_crate_inject, attr(deny(rust_2018_idioms))))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[cfg(not(feature = "current-thread"))]
 mod generated {
     #![allow(unreachable_pub)]
     #![allow(missing_docs)]
@@ -37,35 +36,10 @@ mod generated {
         }
     }
 }
-#[cfg(feature = "current-thread")]
-mod generated_current_thread {
-    #![allow(unreachable_pub)]
-    #![allow(missing_docs)]
-    #![allow(rustdoc::invalid_html_tags)]
-    #[rustfmt::skip]
-    pub mod grpc_reflection_v1alpha;
-
-    /// Byte encoded FILE_DESCRIPTOR_SET.
-    pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("generated_current_thread/reflection_v1alpha1.bin");
-
-    #[cfg(test)]
-    mod tests {
-        use super::FILE_DESCRIPTOR_SET;
-        use prost::Message as _;
-
-        #[test]
-        fn file_descriptor_set_is_valid() {
-            prost_types::FileDescriptorSet::decode(FILE_DESCRIPTOR_SET).unwrap();
-        }
-    }
-}
 
 /// Generated protobuf types from the `grpc.reflection.v1alpha` package.
 pub mod pb {
-    #[cfg(not(feature = "current-thread"))]
     pub use crate::generated::{grpc_reflection_v1alpha::*, FILE_DESCRIPTOR_SET};
-    #[cfg(feature = "current-thread")]
-    pub use crate::generated_current_thread::{grpc_reflection_v1alpha::*, FILE_DESCRIPTOR_SET};
 }
 
 /// Implementation of the server component of gRPC Server Reflection.

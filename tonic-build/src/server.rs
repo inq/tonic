@@ -18,7 +18,7 @@ pub(crate) fn generate_internal<T: Service>(
     attributes: &Attributes,
     disable_comments: &HashSet<String>,
     use_arc_self: bool,
-    current_thread: bool,
+    local_executor: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
     let methods = generate_methods(
@@ -27,7 +27,8 @@ pub(crate) fn generate_internal<T: Service>(
         proto_path,
         compile_well_known_types,
         use_arc_self,
-        current_thread,
+        local_executor
+,
         generate_default_stubs,
     );
 
@@ -42,7 +43,8 @@ pub(crate) fn generate_internal<T: Service>(
         server_trait.clone(),
         disable_comments,
         use_arc_self,
-        current_thread,
+        local_executor
+,
         generate_default_stubs,
     );
     let package = if emit_package { service.package() } else { "" };
@@ -59,25 +61,30 @@ pub(crate) fn generate_internal<T: Service>(
     let mod_attributes = attributes.for_mod(package);
     let struct_attributes = attributes.for_struct(&service_name);
 
-    let rc_type = if current_thread {
-        quote!(Arc)
-    } else {
+    let rc_type = if local_executor {
         quote!(Rc)
-    };
-    let box_future_type = if current_thread {
-        quote!(BoxFuture)
     } else {
+        quote!(Arc)
+    };
+    let box_future_type = if local_executor {
         quote!(LocalBoxFuture)
-    };
-    let box_body_type = if current_thread {
-        quote!(BoxBody)
     } else {
+        quote!(BoxFuture)
+    };
+    let box_body_type = if local_executor {
         quote!(LocalBoxBody)
-    };
-    let empty_body_fn = if current_thread {
-        quote!(empty_body)
     } else {
+        quote!(BoxBody)
+    };
+    let intercepted_service_type = if local_executor {
+        quote!(LocalInterceptedService)
+    } else {
+        quote!(InterceptedService)
+    };
+    let empty_body_fn = if local_executor {
         quote!(local_empty_body)
+    } else {
+        quote!(empty_body)
     };
 
     let configure_compression_methods = quote! {
@@ -160,11 +167,11 @@ pub(crate) fn generate_internal<T: Service>(
                     }
                 }
 
-                pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+                pub fn with_interceptor<F>(inner: T, interceptor: F) -> #intercepted_service_type<Self, F>
                 where
                     F: tonic::service::Interceptor,
                 {
-                    InterceptedService::new(Self::new(inner), interceptor)
+                    #intercepted_service_type::new(Self::new(inner), interceptor)
                 }
 
                 #configure_compression_methods
@@ -243,7 +250,7 @@ fn generate_trait<T: Service>(
     server_trait: Ident,
     disable_comments: &HashSet<String>,
     use_arc_self: bool,
-    current_thread: bool,
+    local_executor: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
     let methods = generate_trait_methods(
@@ -253,7 +260,8 @@ fn generate_trait<T: Service>(
         compile_well_known_types,
         disable_comments,
         use_arc_self,
-        current_thread,
+        local_executor
+,
         generate_default_stubs,
     );
     let trait_doc = generate_doc_comment(format!(
@@ -261,19 +269,19 @@ fn generate_trait<T: Service>(
         service.name()
     ));
 
-    if current_thread {
+    if local_executor {
         quote! {
             #trait_doc
-            #[async_trait]
-            pub trait #server_trait : Send + Sync + 'static {
+            #[async_trait(?Send)]
+            pub trait #server_trait: 'static {
                 #methods
             }
         }
     } else {
         quote! {
             #trait_doc
-            #[async_trait(?Send)]
-            pub trait #server_trait: 'static {
+            #[async_trait]
+            pub trait #server_trait : Send + Sync + 'static {
                 #methods
             }
         }
@@ -288,25 +296,25 @@ fn generate_trait_methods<T: Service>(
     compile_well_known_types: bool,
     disable_comments: &HashSet<String>,
     use_arc_self: bool,
-    current_thread: bool,
+    local_executor: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
     let mut stream = TokenStream::new();
 
-    let rc_type = if current_thread {
-        quote!(Arc)
-    } else {
+    let rc_type = if local_executor {
         quote!(Rc)
-    };
-    let box_stream_type = if current_thread {
-        quote!(BoxStream)
     } else {
+        quote!(Arc)
+    };
+    let box_stream_type = if local_executor {
         quote!(LocalBoxStream)
-    };
-    let extra_trait = if current_thread {
-        quote!(Send + 'static)
     } else {
+        quote!(BoxStream)
+    };
+    let extra_trait = if local_executor {
         quote!('static)
+    } else {
+        quote!(Send + 'static)
     };
 
     for method in service.methods() {
@@ -443,7 +451,7 @@ fn generate_methods<T: Service>(
     proto_path: &str,
     compile_well_known_types: bool,
     use_arc_self: bool,
-    current_thread: bool,
+    local_executor: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
     let mut stream = TokenStream::new();
@@ -462,7 +470,8 @@ fn generate_methods<T: Service>(
                 ident,
                 server_trait,
                 use_arc_self,
-                current_thread,
+                local_executor
+        ,
             ),
 
             (false, true) => generate_server_streaming(
@@ -472,7 +481,8 @@ fn generate_methods<T: Service>(
                 ident.clone(),
                 server_trait,
                 use_arc_self,
-                current_thread,
+                local_executor
+        ,
                 generate_default_stubs,
             ),
             (true, false) => generate_client_streaming(
@@ -482,7 +492,8 @@ fn generate_methods<T: Service>(
                 ident.clone(),
                 server_trait,
                 use_arc_self,
-                current_thread,
+                local_executor
+        ,
             ),
 
             (true, true) => generate_streaming(
@@ -492,7 +503,8 @@ fn generate_methods<T: Service>(
                 ident.clone(),
                 server_trait,
                 use_arc_self,
-                current_thread,
+                local_executor
+        ,
                 generate_default_stubs,
             ),
         };
@@ -515,7 +527,7 @@ fn generate_unary<T: Method>(
     method_ident: Ident,
     server_trait: Ident,
     use_arc_self: bool,
-    current_thread: bool,
+    local_executor: bool,
 ) -> TokenStream {
     let codec_name = syn::parse_str::<syn::Path>(method.codec_path()).unwrap();
 
@@ -529,20 +541,20 @@ fn generate_unary<T: Method>(
         quote!(&inner)
     };
 
-    let rc_type = if current_thread {
-        quote!(Arc)
-    } else {
+    let rc_type = if local_executor {
         quote!(Rc)
-    };
-    let box_future_type = if current_thread {
-        quote!(BoxFuture)
     } else {
+        quote!(Arc)
+    };
+    let box_future_type = if local_executor {
         quote!(LocalBoxFuture)
-    };
-    let grpc_init = if current_thread {
-        quote!(tonic::server::Grpc::new(codec))
     } else {
-        quote!(tonic::server::Grpc::new(codec).current_thread_executor())
+        quote!(BoxFuture)
+    };
+    let grpc_init = if local_executor {
+        quote!(tonic::server::Grpc::new(codec).local_executor())
+    } else {
+        quote!(tonic::server::Grpc::new(codec))
     };
 
     quote! {
@@ -592,27 +604,27 @@ fn generate_server_streaming<T: Method>(
     method_ident: Ident,
     server_trait: Ident,
     use_arc_self: bool,
-    current_thread: bool,
+    local_executor: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
     let codec_name = syn::parse_str::<syn::Path>(method.codec_path()).unwrap();
 
     let service_ident = quote::format_ident!("{}Svc", method.identifier());
 
-    let rc_type = if current_thread {
-        quote!(Arc)
-    } else {
+    let rc_type = if local_executor {
         quote!(Rc)
-    };
-    let box_future_type = if current_thread {
-        quote!(BoxFuture)
     } else {
+        quote!(Arc)
+    };
+    let box_future_type = if local_executor {
         quote!(LocalBoxFuture)
-    };
-    let box_stream_type = if current_thread {
-        quote!(BoxStream)
     } else {
+        quote!(BoxFuture)
+    };
+    let box_stream_type = if local_executor {
         quote!(LocalBoxStream)
+    } else {
+        quote!(BoxStream)
     };
 
     let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
@@ -677,22 +689,22 @@ fn generate_client_streaming<T: Method>(
     method_ident: Ident,
     server_trait: Ident,
     use_arc_self: bool,
-    current_thread: bool,
+    local_executor: bool,
 ) -> TokenStream {
     let service_ident = quote::format_ident!("{}Svc", method.identifier());
 
     let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
     let codec_name = syn::parse_str::<syn::Path>(method.codec_path()).unwrap();
 
-    let rc_type = if current_thread {
-        quote!(Arc)
-    } else {
+    let rc_type = if local_executor {
         quote!(Rc)
-    };
-    let box_future_type = if current_thread {
-        quote!(BoxFuture)
     } else {
+        quote!(Arc)
+    };
+    let box_future_type = if local_executor {
         quote!(LocalBoxFuture)
+    } else {
+        quote!(BoxFuture)
     };
 
     let inner_arg = if use_arc_self {
@@ -749,7 +761,7 @@ fn generate_streaming<T: Method>(
     method_ident: Ident,
     server_trait: Ident,
     use_arc_self: bool,
-    current_thread: bool,
+    local_executor: bool,
     generate_default_stubs: bool,
 ) -> TokenStream {
     let codec_name = syn::parse_str::<syn::Path>(method.codec_path()).unwrap();
@@ -758,20 +770,20 @@ fn generate_streaming<T: Method>(
 
     let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
 
-    let rc_type = if current_thread {
-        quote!(Arc)
-    } else {
+    let rc_type = if local_executor {
         quote!(Rc)
-    };
-    let box_future_type = if current_thread {
-        quote!(BoxFuture)
     } else {
+        quote!(Arc)
+    };
+    let box_future_type = if local_executor {
         quote!(LocalBoxFuture)
-    };
-    let box_stream_type = if current_thread {
-        quote!(BoxStream)
     } else {
+        quote!(BoxFuture)
+    };
+    let box_stream_type = if local_executor {
         quote!(LocalBoxStream)
+    } else {
+        quote!(BoxStream)
     };
 
     let response_stream = if !generate_default_stubs {

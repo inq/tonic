@@ -48,7 +48,7 @@ async fn client_enabled_server_enabled() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 .layer(
                     ServiceBuilder::new()
@@ -93,7 +93,7 @@ async fn client_enabled_server_disabled() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 // no compression enable on the server so responses should not be compressed
                 .layer(
@@ -163,7 +163,7 @@ async fn client_disabled() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 .layer(
                     ServiceBuilder::new()
@@ -211,7 +211,7 @@ async fn server_replying_with_unsupported_encoding() {
         #[cfg(not(feature = "current-thread"))]
         let mut builder = Server::builder();
         #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
+        let mut builder = Server::builder().local_executor();
         builder
             .layer(
                 ServiceBuilder::new()
@@ -252,7 +252,7 @@ async fn disabling_compression_on_single_response() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 .layer(
                     ServiceBuilder::new()
@@ -297,7 +297,7 @@ async fn disabling_compression_on_response_but_keeping_compression_on_stream() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 .layer(
                     ServiceBuilder::new()
@@ -357,7 +357,7 @@ async fn disabling_compression_on_response_from_client_stream() {
             #[cfg(not(feature = "current-thread"))]
             let mut builder = Server::builder();
             #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().current_thread_executor();
+            let mut builder = Server::builder().local_executor();
             builder
                 .layer(
                     ServiceBuilder::new()
