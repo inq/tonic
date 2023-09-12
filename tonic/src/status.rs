@@ -1,4 +1,4 @@
-use crate::metadata::MetadataMap;
+use crate::{metadata::MetadataMap, util::executor::HasBoxBody};
 use base64::Engine as _;
 use bytes::Bytes;
 use http::header::{HeaderMap, HeaderValue};
@@ -593,7 +593,9 @@ impl Status {
 
     #[allow(clippy::wrong_self_convention)]
     /// Build an `http::Response` from the given `Status`.
-    pub fn to_http(self) -> http::Response<BoxBody>
+    pub fn to_http<Ex>(self) -> http::Response<Ex::BoxBody>
+    where
+        Ex: HasBoxBody,
     {
         let (mut parts, _body) = http::Response::new(()).into_parts();
 
@@ -604,7 +606,7 @@ impl Status {
 
         self.add_header(&mut parts.headers).unwrap();
 
-        http::Response::from_parts(parts, empty_body())
+        http::Response::from_parts(parts, Ex::empty_body())
     }
 }
 

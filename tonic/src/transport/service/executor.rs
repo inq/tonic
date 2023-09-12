@@ -1,12 +1,12 @@
 use crate::body::{BoxBody, LocalBoxBody};
 use http::{Request, Response};
+use hyper::Body;
 use crate::transport::BoxFuture;
 use crate::codegen::LocalBoxFuture;
 use std::convert::Infallible;
 use std::{future::Future, sync::Arc};
 
 use bytes::Bytes;
-use hyper::Body;
 pub(crate) use hyper::rt::Executor;
 use tower_service::Service;
 

@@ -3,6 +3,8 @@
 // some combinations of features might cause things here not to be used
 #![allow(dead_code)]
 
+pub mod executor;
+
 use std::task::{Context, Poll};
 
 use tower_layer::{LayerFn, layer_fn};

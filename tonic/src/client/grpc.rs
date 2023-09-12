@@ -1,4 +1,6 @@
 use crate::codec::compression::{CompressionEncoding, EnabledCompressionEncodings};
+use crate::transport::{TokioExec, LocalExec};
+use crate::util::executor::{MakeBoxBody, MaybeSend, HasBoxBody};
 use crate::{
     body::BoxBody,
     client::GrpcService,
@@ -11,6 +13,7 @@ use http::{
     uri::{Parts, PathAndQuery, Uri},
 };
 use http_body::Body;
+use std::marker::PhantomData;
 use std::{fmt, future};
 use tokio_stream::{Stream, StreamExt};
 
@@ -27,9 +30,10 @@ use tokio_stream::{Stream, StreamExt};
 /// example of this path could look like `/greeter.Greeter/SayHello`.
 ///
 /// [gRPC protocol definition]: https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md#requests
-pub struct Grpc<T> {
+pub struct Grpc<T, Ex = TokioExec> {
     inner: T,
     config: GrpcConfig,
+    _marker: PhantomData<Ex>,
 }
 
 struct GrpcConfig {
@@ -43,9 +47,6 @@ struct GrpcConfig {
     /// Limits the maximum size of an encoded message.
     max_encoding_message_size: Option<usize>,
 }
-
-macro_rules! define_grpc {
-($($maybe_send: tt)?) => {
 
 impl<T> Grpc<T> {
     /// Creates a new gRPC client with the provided [`GrpcService`].
@@ -67,9 +68,21 @@ impl<T> Grpc<T> {
                 max_decoding_message_size: None,
                 max_encoding_message_size: None,
             },
+            _marker: PhantomData,
         }
     }
 
+    /// Use local executor
+    pub fn local_exec(self) -> Grpc<T, LocalExec> {
+        Grpc {
+            inner: self.inner,
+            config: self.config,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T, Ex> Grpc<T, Ex> {
     /// Compress requests with the provided encoding.
     ///
     /// Requires the server to accept the specified encoding, otherwise it might return an error.
@@ -212,8 +225,9 @@ impl<T> Grpc<T> {
         codec: C,
     ) -> Result<Response<M2>, Status>
     where
+        Ex: MaybeSend<T::ResponseBody>,
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + $($maybe_send +)* 'static,
+        T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
         C: Codec<Encode = M1, Decode = M2>,
         M1: Send + Sync + 'static,
@@ -231,8 +245,9 @@ impl<T> Grpc<T> {
         codec: C,
     ) -> Result<Response<M2>, Status>
     where
+        Ex: MaybeSend<T::ResponseBody>,
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + $($maybe_send +)* 'static,
+        T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
         S: Stream<Item = M1> + Send + 'static,
         C: Codec<Encode = M1, Decode = M2>,
@@ -266,10 +281,11 @@ impl<T> Grpc<T> {
         request: Request<M1>,
         path: PathAndQuery,
         codec: C,
-    ) -> Result<Response<Streaming<M2>>, Status>
+    ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
+        Ex: MaybeSend<T::ResponseBody>,
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + $($maybe_send +)* 'static,
+        T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
         C: Codec<Encode = M1, Decode = M2>,
         M1: Send + Sync + 'static,
@@ -285,10 +301,11 @@ impl<T> Grpc<T> {
         request: Request<S>,
         path: PathAndQuery,
         mut codec: C,
-    ) -> Result<Response<Streaming<M2>>, Status>
+    ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
+        Ex: MakeBoxBody<T::ResponseBody>,
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + $($maybe_send +)* 'static,
+        T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
         S: Stream<Item = M1> + Send + 'static,
         C: Codec<Encode = M1, Decode = M2>,
@@ -325,10 +342,11 @@ impl<T> Grpc<T> {
         &self,
         decoder: impl Decoder<Item = M2, Error = Status> + Send + 'static,
         response: http::Response<T::ResponseBody>,
-    ) -> Result<Response<Streaming<M2>>, Status>
+    ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
+        Ex: MakeBoxBody<T::ResponseBody>,
         T: GrpcService<BoxBody>,
-        T::ResponseBody: Body + $($maybe_send +)* 'static,
+        T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
     {
         let encoding = CompressionEncoding::from_encoding_header(
@@ -368,14 +386,6 @@ impl<T> Grpc<T> {
         Ok(Response::from_http(response))
     }
 }
-
-}
-}
-
-#[cfg(not(feature = "current-thread"))]
-define_grpc!(Send);
-#[cfg(feature = "current-thread")]
-define_grpc!();
 
 impl GrpcConfig {
     fn prepare_request(
@@ -431,7 +441,7 @@ impl GrpcConfig {
     }
 }
 
-impl<T: Clone> Clone for Grpc<T> {
+impl<T: Clone, Ex> Clone for Grpc<T, Ex> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -442,11 +452,12 @@ impl<T: Clone> Clone for Grpc<T> {
                 max_encoding_message_size: self.config.max_encoding_message_size,
                 max_decoding_message_size: self.config.max_decoding_message_size,
             },
+            _marker: self._marker.clone(),
         }
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Grpc<T> {
+impl<T: fmt::Debug, Ex> fmt::Debug for Grpc<T, Ex> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("Grpc");
 

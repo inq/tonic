@@ -6,7 +6,7 @@
 mod buffer;
 pub(crate) mod compression;
 mod decode;
-mod encode;
+pub(crate) mod encode;
 #[cfg(feature = "prost")]
 mod prost;
 

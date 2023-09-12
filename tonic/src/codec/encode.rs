@@ -22,7 +22,7 @@ pub(crate) fn encode_server<T, U>(
     compression_encoding: Option<CompressionEncoding>,
     compression_override: SingleMessageCompressionOverride,
     max_message_size: Option<usize>,
-) -> EncodeBody<impl Stream<Item = Result<Bytes, Status>>>
+) -> EncodeBody<EncodedBytes<T, U>>
 where
     T: Encoder<Error = Status>,
     U: Stream<Item = Result<T::Item, Status>>,

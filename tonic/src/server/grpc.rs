@@ -1,25 +1,25 @@
 use crate::codec::compression::{
     CompressionEncoding, EnabledCompressionEncodings, SingleMessageCompressionOverride,
 };
+use crate::codec::encode::{EncodeBody, EncodedBytes};
+use crate::transport::{TokioExec, LocalExec};
+use crate::util::executor::{MaybeSend, MakeBoxBody};
 use crate::{
     codec::{encode_server, Codec, Streaming},
     server::{ClientStreamingService, ServerStreamingService, StreamingService, UnaryService},
     Code, Request, Status,
 };
+use bytes::Bytes;
 use http_body::Body;
 use std::fmt;
-use tokio_stream::{Stream, StreamExt};
-
-#[cfg(not(feature = "current-thread"))]
-type BoxBody = crate::body::BoxBody;
-#[cfg(feature = "current-thread")]
-type BoxBody = crate::body::LocalBoxBody;
+use std::marker::PhantomData;
+use tokio_stream::{Stream, StreamExt, Once};
 
 macro_rules! t {
     ($result:expr) => {
         match $result {
             Ok(value) => value,
-            Err(status) => return status.to_http(),
+            Err(status) => return status.to_http::<Ex>(),
         }
     };
 }
@@ -33,7 +33,7 @@ macro_rules! t {
 /// Each request handler method accepts some service that implements the
 /// corresponding service trait and a http request that contains some body that
 /// implements some [`Body`].
-pub struct Grpc<T> {
+pub struct Grpc<T, Ex = TokioExec> {
     codec: T,
     /// Which compression encodings does the server accept for requests?
     accept_compression_encodings: EnabledCompressionEncodings,
@@ -43,6 +43,8 @@ pub struct Grpc<T> {
     max_decoding_message_size: Option<usize>,
     /// Limits the maximum size of an encoded message.
     max_encoding_message_size: Option<usize>,
+    /// Executor
+    _marker: PhantomData<Ex>,
 }
 
 impl<T> Grpc<T>
@@ -57,11 +59,24 @@ where
             send_compression_encodings: EnabledCompressionEncodings::default(),
             max_decoding_message_size: None,
             max_encoding_message_size: None,
+            _marker: PhantomData,
+        }
+    }
+
+    /// Creates a new gRPC server with the provided [`Codec`].
+    pub fn current_thread(self) -> Grpc<T, LocalExec> {
+        Grpc {
+            codec: self.codec,
+            accept_compression_encodings: self.accept_compression_encodings,
+            send_compression_encodings: self.send_compression_encodings,
+            max_decoding_message_size: self.max_decoding_message_size,
+            max_encoding_message_size: self.max_encoding_message_size,
+            _marker: PhantomData,
         }
     }
 }
 
-impl<T> Grpc<T>
+impl<T, Ex> Grpc<T, Ex>
 where
     T: Codec,
 {
@@ -225,25 +240,20 @@ where
 
         this
     }
-}
 
-macro_rules! define_grpc {
-($($maybe_send: tt)?) => {
-
-impl<T> Grpc<T>
-where
-    T: Codec,
-    {
     /// Handle a single unary gRPC request.
     pub async fn unary<S, B>(
         &mut self,
         mut service: S,
         req: http::Request<B>,
-    ) -> http::Response<BoxBody>
+    ) -> http::Response<Ex::BoxBody>
     where
+        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, Once<std::result::Result<T::Encode, Status>>>>>,
         S: UnaryService<T::Decode, Response = T::Encode>,
-        B: Body + Send + 'static,
+        B: Stream<Item = Result<T::Encode, Status>> + Body + 'static,
         B::Error: Into<crate::Error> + Send,
+        Ex: MakeBoxBody<B> + MaybeSend<tokio_stream::Once<Result<T::Encode, Status>>>,
+        Ex: MakeBoxBody<tokio_stream::Once<Result<T::Encode, Status>>>,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
             req.headers(),
@@ -282,11 +292,12 @@ where
         &mut self,
         mut service: S,
         req: http::Request<B>,
-    ) -> http::Response<BoxBody>
+    ) -> http::Response<Ex::BoxBody>
     where
+        Ex: MakeBoxBody<B> + MakeBoxBody<S::ResponseStream> + MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
         S: ServerStreamingService<T::Decode, Response = T::Encode>,
-        S::ResponseStream: $($maybe_send +)* 'static,
-        B: Body + Send + 'static,
+        S::ResponseStream: 'static,
+        B: Stream<Item = Result<T::Encode, Status>> + Body + 'static,
         B::Error: Into<crate::Error> + Send,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
@@ -323,10 +334,13 @@ where
         &mut self,
         mut service: S,
         req: http::Request<B>,
-    ) -> http::Response<BoxBody>
+    ) -> http::Response<Ex::BoxBody>
     where
-        S: ClientStreamingService<T::Decode, Response = T::Encode>,
-        B: Body + Send + 'static,
+        Ex: MakeBoxBody<B>,
+        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
+        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, Once<Result<T::Encode, Status>>>>>,
+        S: ClientStreamingService<T::Decode, Ex, Response = T::Encode>,
+        B: Stream<Item = Result<T::Encode, Status>> + Body + 'static,
         B::Error: Into<crate::Error> + Send + 'static,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
@@ -334,7 +348,7 @@ where
             self.send_compression_encodings,
         );
 
-        let request = t!(self.map_request_streaming(req));
+        let request = t!(self.map_request_streaming::<B>(req));
 
         let response = service
             .call(request)
@@ -356,11 +370,14 @@ where
         &mut self,
         mut service: S,
         req: http::Request<B>,
-    ) -> http::Response<BoxBody>
+    ) -> http::Response<Ex::BoxBody>
     where
-        S: StreamingService<T::Decode, Response = T::Encode> $(+ $maybe_send)*,
-        S::ResponseStream: $($maybe_send +)* 'static,
-        B: Body + Send + 'static,
+        Ex: MakeBoxBody<B>,
+        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
+        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
+        S: StreamingService<T::Decode, Ex, Response = T::Encode>,
+        S::ResponseStream: Body<Data = Bytes, Error = Status> + 'static,
+        B: Stream<Item = Result<T::Encode, Status>> + Body,
         B::Error: Into<crate::Error> + Send,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
@@ -385,14 +402,15 @@ where
         request: http::Request<B>,
     ) -> Result<Request<T::Decode>, Status>
     where
-        B: Body + Send + 'static,
+        Ex: MakeBoxBody<B>,
+        B: Body + 'static,
         B::Error: Into<crate::Error> + Send,
     {
         let request_compression_encoding = self.request_encoding_if_supported(&request)?;
 
         let (parts, body) = request.into_parts();
 
-        let stream = Streaming::new_request(
+        let stream = Streaming::<_, Ex>::new_request(
             self.codec.decoder(),
             body,
             request_compression_encoding,
@@ -418,9 +436,10 @@ where
     fn map_request_streaming<B>(
         &mut self,
         request: http::Request<B>,
-    ) -> Result<Request<Streaming<T::Decode>>, Status>
+    ) -> Result<Request<Streaming<T::Decode, Ex>>, Status>
     where
-        B: Body + Send + 'static,
+        Ex: MakeBoxBody<B> + MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
+        B: Stream<Item = Result<T::Encode, Status>> + Body,
         B::Error: Into<crate::Error> + Send,
     {
         let encoding = self.request_encoding_if_supported(&request)?;
@@ -443,13 +462,14 @@ where
         accept_encoding: Option<CompressionEncoding>,
         compression_override: SingleMessageCompressionOverride,
         max_message_size: Option<usize>,
-    ) -> http::Response<BoxBody>
+    ) -> http::Response<Ex::BoxBody>
     where
-        B: Stream<Item = Result<T::Encode, Status>> + $($maybe_send +)* 'static,
+        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
+        B: Stream<Item = Result<T::Encode, Status>> + 'static,
     {
         let response = match response {
             Ok(r) => r,
-            Err(status) => return status.to_http(),
+            Err(status) => return status.to_http::<Ex>(),
         };
 
         let (mut parts, body) = response.into_http().into_parts();
@@ -476,7 +496,7 @@ where
             max_message_size,
         );
 
-        http::Response::from_parts(parts, BoxBody::new(body))
+        http::Response::from_parts(parts, Ex::make_box_body(body))
     }
 
     fn request_encoding_if_supported<B>(
@@ -490,15 +510,7 @@ where
     }
 }
 
-}
-} // end of macro
-
-#[cfg(not(feature = "current-thread"))]
-define_grpc!(Send);
-#[cfg(feature = "current-thread")]
-define_grpc!();
-
-impl<T: fmt::Debug> fmt::Debug for Grpc<T> {
+impl<T: fmt::Debug, Ex> fmt::Debug for Grpc<T, Ex> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("Grpc");
 
