@@ -11,8 +11,7 @@ pub mod hello_world {
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,
@@ -38,11 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    builder.add_service(service).serve(addr).await?;
+    Server::builder().add_service(service).serve(addr).await?;
 
     Ok(())
 }

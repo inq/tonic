@@ -11,8 +11,7 @@ mod proto {
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl proto::greeter_server::Greeter for MyGreeter {
     async fn say_hello(
         &self,
@@ -37,11 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::1]:50052".parse().unwrap();
     let greeter = MyGreeter::default();
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    builder
+    Server::builder()
         .add_service(service)
         .add_service(proto::greeter_server::GreeterServer::new(greeter))
         .serve(addr)

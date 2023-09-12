@@ -16,8 +16,7 @@ type EchoResult<T> = Result<Response<T>, Status>;
 #[derive(Default)]
 pub struct EchoServer;
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl pb::echo_server::Echo for EchoServer {
     async fn unary_echo(&self, request: Request<EchoRequest>) -> EchoResult<EchoResponse> {
         let conn_info = request
@@ -46,11 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::1]:50051".parse().unwrap();
     let server = EchoServer::default();
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    builder
+    Server::builder()
         .tls_config(ServerTlsConfig::new().identity(identity))?
         .add_service(pb::echo_server::EchoServer::new(server))
         .serve(addr)

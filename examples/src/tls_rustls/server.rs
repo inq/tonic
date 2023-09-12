@@ -13,11 +13,6 @@ use tokio_rustls::{
 use tonic::{transport::Server, Request, Response, Status};
 use tower_http::ServiceBuilderExt;
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = std::path::PathBuf::from_iter([std::env!("CARGO_MANIFEST_DIR"), "data"]);
@@ -50,17 +45,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let server = EchoServer::default();
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    let svc = builder
+    let svc = Server::builder()
         .add_service(pb::echo_server::EchoServer::new(server))
         .into_service();
 
     let mut http = Http::new();
-    #[cfg(feature = "current-thread")]
-    let mut http = http.with_executor(tonic::transport::LocalExec);
     http.http2_only(true);
 
     let listener = TcpListener::bind("[::1]:50051").await?;
@@ -79,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let tls_acceptor = tls_acceptor.clone();
         let svc = svc.clone();
 
-        spawn_task(async move {
+        tokio::spawn(async move {
             let mut certificates = Vec::new();
 
             let conn = tls_acceptor
@@ -113,8 +102,7 @@ type EchoResult<T> = Result<Response<T>, Status>;
 #[derive(Default)]
 pub struct EchoServer;
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl pb::echo_server::Echo for EchoServer {
     async fn unary_echo(&self, request: Request<EchoRequest>) -> EchoResult<EchoResponse> {
         let conn_info = request.extensions().get::<Arc<ConnInfo>>().unwrap();

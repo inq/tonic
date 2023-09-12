@@ -25,11 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let greeter = GreeterServer::new(MyGreeter::default());
     let echo = EchoServer::new(MyEcho::default());
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    builder
+    Server::builder()
         .add_service(greeter)
         .add_service(echo)
         .serve(addr)
@@ -41,8 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,
@@ -58,8 +53,7 @@ impl Greeter for MyGreeter {
 #[derive(Default)]
 pub struct MyEcho;
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl Echo for MyEcho {
     async fn unary_echo(
         &self,

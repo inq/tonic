@@ -22,8 +22,7 @@ pub struct RouteGuideService {
     features: Arc<Vec<Feature>>,
 }
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl RouteGuide for RouteGuideService {
     async fn get_feature(&self, request: Request<Point>) -> Result<Response<Feature>, Status> {
         println!("GetFeature = {:?}", request);
@@ -102,10 +101,7 @@ impl RouteGuide for RouteGuideService {
         Ok(Response::new(summary))
     }
 
-    #[cfg(not(feature = "current-thread"))]
     type RouteChatStream = Pin<Box<dyn Stream<Item = Result<RouteNote, Status>> + Send + 'static>>;
-    #[cfg(feature = "current-thread")]
-    type RouteChatStream = Pin<Box<dyn Stream<Item = Result<RouteNote, Status>> + 'static>>;
 
     async fn route_chat(
         &self,
@@ -147,11 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let svc = RouteGuideServer::new(route_guide);
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    builder.add_service(svc).serve(addr).await?;
+    Server::builder().add_service(svc).serve(addr).await?;
 
     Ok(())
 }

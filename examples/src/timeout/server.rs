@@ -12,8 +12,7 @@ pub mod hello_world {
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,
@@ -37,11 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("GreeterServer listening on {}", addr);
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    builder
+    Server::builder()
         .add_service(GreeterServer::new(greeter))
         .serve(addr)
         .await?;

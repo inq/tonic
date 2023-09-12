@@ -4,7 +4,7 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{body::BoxBody, transport::Server, Request, Response, Status};
 use tower::{Layer, Service};
 
 use hello_world::greeter_server::{Greeter, GreeterServer};
@@ -14,21 +14,10 @@ pub mod hello_world {
     tonic::include_proto!("helloworld");
 }
 
-#[cfg(not(feature = "current-thread"))]
-use tonic::body::BoxBody;
-#[cfg(feature = "current-thread")]
-use tonic::body::LocalBoxBody as BoxBody;
-
-#[cfg(not(feature = "current-thread"))]
-type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
-#[cfg(feature = "current-thread")]
-type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + 'a>>;
-
 #[derive(Default)]
 pub struct MyGreeter {}
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl Greeter for MyGreeter {
     async fn say_hello(
         &self,
@@ -62,11 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(tonic::service::interceptor(intercept))
         .into_inner();
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    builder
+    Server::builder()
         // Wrap all services in the middleware stack
         .layer(layer)
         .add_service(svc)
@@ -97,13 +82,12 @@ struct MyMiddleware<S> {
     inner: S,
 }
 
-macro_rules! define_my_middleware {
-($($maybe_send: tt)?) => {
+type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
 
 impl<S> Service<hyper::Request<Body>> for MyMiddleware<S>
 where
-    S: Service<hyper::Request<Body>, Response = hyper::Response<BoxBody>> + Clone + $($maybe_send +)* 'static,
-    S::Future: $($maybe_send +)* 'static,
+    S: Service<hyper::Request<Body>, Response = hyper::Response<BoxBody>> + Clone + Send + 'static,
+    S::Future: Send + 'static,
 {
     type Response = S::Response;
     type Error = S::Error;
@@ -128,11 +112,3 @@ where
         })
     }
 }
-
-}
-}
-
-#[cfg(not(feature = "current-thread"))]
-define_my_middleware!(Send);
-#[cfg(feature = "current-thread")]
-define_my_middleware!();

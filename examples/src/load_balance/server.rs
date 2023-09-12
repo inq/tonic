@@ -10,18 +10,12 @@ use pb::{EchoRequest, EchoResponse};
 
 type EchoResult<T> = Result<Response<T>, Status>;
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
 #[derive(Debug)]
 pub struct EchoServer {
     addr: SocketAddr,
 }
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl pb::echo_server::Echo for EchoServer {
     async fn unary_echo(&self, request: Request<EchoRequest>) -> EchoResult<EchoResponse> {
         let message = format!("{} (from {})", request.into_inner().message, self.addr);
@@ -41,15 +35,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let tx = tx.clone();
 
         let server = EchoServer { addr };
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().current_thread_executor();
-        let serve = builder
+        let serve = Server::builder()
             .add_service(pb::echo_server::EchoServer::new(server))
             .serve(addr);
 
-        spawn_task(async move {
+        tokio::spawn(async move {
             if let Err(e) = serve.await {
                 eprintln!("Error = {:?}", e);
             }

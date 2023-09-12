@@ -12,8 +12,7 @@ use hello_world::{
 #[derive(Debug, Default)]
 pub struct MyGreeter {}
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl Greeter for MyGreeter {
     #[tracing::instrument]
     async fn say_hello(
@@ -43,11 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!(message = "Starting server.", %addr);
 
-    #[cfg(not(feature = "current-thread"))]
-    let mut builder = Server::builder();
-    #[cfg(feature = "current-thread")]
-    let mut builder = Server::builder().current_thread_executor();
-    builder
+    Server::builder()
         .trace_fn(|_| tracing::info_span!("helloworld_server"))
         .add_service(GreeterServer::new(greeter))
         .serve(addr)
