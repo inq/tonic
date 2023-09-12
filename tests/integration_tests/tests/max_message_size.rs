@@ -10,11 +10,6 @@ use tonic::{
     Code, Request, Response, Status,
 };
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
 #[test]
 fn max_message_recv_size() {
     trace_init();
@@ -118,7 +113,7 @@ fn max_message_send_size() {
     });
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn response_stream_limit() {
     let client_blob = vec![0; 1];
 
@@ -126,8 +121,7 @@ async fn response_stream_limit() {
 
     struct Svc;
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test1_server::Test1 for Svc {
         async fn unary_call(&self, _req: Request<Input1>) -> Result<Response<Output1>, Status> {
             unimplemented!()
@@ -151,13 +145,9 @@ async fn response_stream_limit() {
 
     let svc = test1_server::Test1Server::new(Svc);
 
-    spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-
-        builder.add_service(svc)
+    tokio::spawn(async move {
+        Server::builder()
+            .add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
             .await
             .unwrap();
@@ -282,7 +272,7 @@ struct TestCase {
     expected_code: Option<Code>,
 }
 
-#[tonic_test::main]
+#[tokio::main]
 async fn max_message_run(case: &TestCase) -> Result<(), Status> {
     let client_blob = vec![0; case.client_blob_size];
     let server_blob = vec![0; case.server_blob_size];
@@ -291,8 +281,7 @@ async fn max_message_run(case: &TestCase) -> Result<(), Status> {
 
     struct Svc(Vec<u8>);
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test1_server::Test1 for Svc {
         async fn unary_call(&self, _req: Request<Input1>) -> Result<Response<Output1>, Status> {
             Ok(Response::new(Output1 {
@@ -325,13 +314,8 @@ async fn max_message_run(case: &TestCase) -> Result<(), Status> {
         svc
     };
 
-    spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-
-        builder
+    tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_incoming(tokio_stream::iter(vec![Ok::<_, std::io::Error>(server)]))
             .await

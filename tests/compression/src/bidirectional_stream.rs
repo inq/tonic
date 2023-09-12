@@ -1,12 +1,7 @@
 use super::*;
 use tonic::codec::CompressionEncoding;
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
-#[tonic_test::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread")]
 async fn client_enabled_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -22,15 +17,11 @@ async fn client_enabled_server_enabled() {
         req
     }
 
-    spawn_task({
+    tokio::spawn({
         let request_bytes_counter = request_bytes_counter.clone();
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            #[cfg(not(feature = "current-thread"))]
-            let mut builder = Server::builder();
-            #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().local_executor();
-            builder
+            Server::builder()
                 .layer(
                     ServiceBuilder::new()
                         .map_request(assert_right_encoding)

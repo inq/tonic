@@ -5,17 +5,12 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tonic::transport::Server;
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
 #[cfg(test)]
 fn echo_requests_iter() -> impl Stream<Item = ()> {
     tokio_stream::iter(1..usize::MAX).map(|_| ())
 }
 
-#[tonic_test::test()]
+#[tokio::test()]
 async fn test_default_stubs() {
     use tonic::Code;
 
@@ -95,26 +90,16 @@ async fn run_services_in_background() -> (SocketAddr, SocketAddr) {
     let listener_default_stubs = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr_default_stubs = listener_default_stubs.local_addr().unwrap();
 
-    spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-
-        builder
+    tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
             .await
             .unwrap();
     });
 
-    spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-
-        builder
+    tokio::spawn(async move {
+        Server::builder()
             .add_service(svc_default_stubs)
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
                 listener_default_stubs,

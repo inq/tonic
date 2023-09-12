@@ -7,15 +7,9 @@ use tonic::{
     Code, Request, Response, Status,
 };
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
 struct Svc(Arc<Mutex<Option<oneshot::Sender<()>>>>);
 
-#[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-#[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+#[tonic::async_trait]
 impl test_server::Test for Svc {
     async fn unary_call(&self, _: Request<Input>) -> Result<Response<Output>, Status> {
         let mut l = self.0.lock().unwrap();
@@ -25,25 +19,21 @@ impl test_server::Test for Svc {
     }
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn connect_returns_err() {
     let res = TestClient::connect("http://thisdoesntexist").await;
 
     assert!(res.is_err());
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn connect_returns_err_via_call_after_connected() {
     let (tx, rx) = oneshot::channel();
     let sender = Arc::new(Mutex::new(Some(tx)));
     let svc = test_server::TestServer::new(Svc(sender));
 
-    let jh = spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    let jh = tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1338".parse().unwrap(), async { drop(rx.await) })
             .await
@@ -67,7 +57,7 @@ async fn connect_returns_err_via_call_after_connected() {
     jh.await.unwrap();
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn connect_lazy_reconnects_after_first_failure() {
     let (tx, rx) = oneshot::channel();
     let sender = Arc::new(Mutex::new(Some(tx)));
@@ -81,12 +71,8 @@ async fn connect_lazy_reconnects_after_first_failure() {
     client.unary_call(Request::new(Input {})).await.unwrap_err();
 
     // Start the server now, second call should succeed
-    let jh = spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    let jh = tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1339".parse().unwrap(), async { drop(rx.await) })
             .await

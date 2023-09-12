@@ -6,17 +6,11 @@ use tonic::{
     Request, Response, Status,
 };
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
-#[tonic_test::test]
+#[tokio::test]
 async fn writes_user_agent_header() {
     struct Svc;
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test_server::Test for Svc {
         async fn unary_call(&self, req: Request<Input>) -> Result<Response<Output>, Status> {
             match req.metadata().get("user-agent") {
@@ -30,12 +24,8 @@ async fn writes_user_agent_header() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    let jh = tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1322".parse().unwrap(), async { drop(rx.await) })
             .await

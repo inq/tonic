@@ -6,17 +6,11 @@ use tonic::{
     Request, Response, Status,
 };
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
-#[tonic_test::test]
+#[tokio::test]
 async fn getting_connect_info() {
     struct Svc;
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test_server::Test for Svc {
         async fn unary_call(&self, req: Request<Input>) -> Result<Response<Output>, Status> {
             assert!(req.local_addr().is_some());
@@ -31,12 +25,8 @@ async fn getting_connect_info() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    let jh = tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1400".parse().unwrap(), async { drop(rx.await) })
             .await
@@ -61,7 +51,6 @@ async fn getting_connect_info() {
 
 #[cfg(unix)]
 pub mod unix {
-    use super::spawn_task;
     use tokio::{
         net::{UnixListener, UnixStream},
         sync::oneshot,
@@ -77,8 +66,7 @@ pub mod unix {
 
     struct Svc {}
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test_server::Test for Svc {
         async fn unary_call(&self, req: Request<Input>) -> Result<Response<Output>, Status> {
             let conn_info = req.extensions().get::<UdsConnectInfo>().unwrap();
@@ -94,7 +82,7 @@ pub mod unix {
         }
     }
 
-    #[tonic_test::test]
+    #[tokio::test]
     async fn getting_connect_info() {
         let mut unix_socket_path = std::env::temp_dir();
         unix_socket_path.push("uds-integration-test");
@@ -105,12 +93,8 @@ pub mod unix {
         let service = test_server::TestServer::new(Svc {});
         let (tx, rx) = oneshot::channel::<()>();
 
-        let jh = spawn_task(async move {
-            #[cfg(not(feature = "current-thread"))]
-            let mut builder = Server::builder();
-            #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().local_executor();
-            builder
+        let jh = tokio::spawn(async move {
+            Server::builder()
                 .add_service(service)
                 .serve_with_incoming_shutdown(uds_stream, async { drop(rx.await) })
                 .await

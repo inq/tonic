@@ -2,21 +2,15 @@ use integration_tests::pb::{test_stream_server, InputStream, OutputStream};
 use tokio::sync::oneshot;
 use tonic::{transport::Server, Request, Response, Status};
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
 type Stream<T> = std::pin::Pin<
     Box<dyn tokio_stream::Stream<Item = std::result::Result<T, Status>> + Send + 'static>,
 >;
 
-#[tonic_test::test]
+#[tokio::test]
 async fn status_from_server_stream_with_source() {
     struct Svc;
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test_stream_server::TestStream for Svc {
         type StreamCallStream = Stream<OutputStream>;
 
@@ -34,12 +28,8 @@ async fn status_from_server_stream_with_source() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    let jh = tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1339".parse().unwrap(), async { drop(rx.await) })
             .await

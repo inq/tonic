@@ -12,17 +12,11 @@ use tonic::metadata::{MetadataMap, MetadataValue};
 use tonic::transport::Endpoint;
 use tonic::{transport::Server, Code, Request, Response, Status};
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
-#[tonic_test::test]
+#[tokio::test]
 async fn status_with_details() {
     struct Svc;
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test_server::Test for Svc {
         async fn unary_call(&self, _: Request<Input>) -> Result<Response<Output>, Status> {
             Err(Status::with_details(
@@ -37,12 +31,8 @@ async fn status_with_details() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    let jh = tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1337".parse().unwrap(), async { drop(rx.await) })
             .await
@@ -68,7 +58,7 @@ async fn status_with_details() {
     jh.await.unwrap();
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn status_with_metadata() {
     const MESSAGE: &str = "Internal error, see metadata for details";
 
@@ -80,8 +70,7 @@ async fn status_with_metadata() {
 
     struct Svc;
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test_server::Test for Svc {
         async fn unary_call(&self, _: Request<Input>) -> Result<Response<Output>, Status> {
             let mut metadata = MetadataMap::new();
@@ -96,12 +85,8 @@ async fn status_with_metadata() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    let jh = tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1338".parse().unwrap(), async { drop(rx.await) })
             .await
@@ -143,14 +128,13 @@ type Stream<T> = std::pin::Pin<
     Box<dyn tokio_stream::Stream<Item = std::result::Result<T, Status>> + Send + 'static>,
 >;
 
-#[tonic_test::test]
+#[tokio::test]
 async fn status_from_server_stream() {
     integration_tests::trace_init();
 
     struct Svc;
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test_stream_server::TestStream for Svc {
         type StreamCallStream = Stream<OutputStream>;
 
@@ -168,12 +152,8 @@ async fn status_from_server_stream() {
 
     let svc = test_stream_server::TestStreamServer::new(Svc);
 
-    spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    tokio::spawn(async move {
+        Server::builder()
             .add_service(svc)
             .serve("127.0.0.1:1339".parse().unwrap())
             .await
@@ -196,7 +176,7 @@ async fn status_from_server_stream() {
     assert_eq!(stream.message().await.unwrap(), None);
 }
 
-#[tonic_test::test]
+#[tokio::test]
 async fn status_from_server_stream_with_source() {
     integration_tests::trace_init();
 

@@ -1,5 +1,6 @@
 use integration_tests::pb::test_client;
 use integration_tests::pb::{test_server, Input, Output};
+use integration_tests::BoxFuture;
 use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
@@ -12,22 +13,11 @@ use tonic::{
 use tower::Layer;
 use tower::Service;
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-
-#[cfg(not(feature = "current-thread"))]
-use integration_tests::BoxFuture;
-#[cfg(feature = "current-thread")]
-use integration_tests::LocalBoxFuture as BoxFuture;
-
-#[tonic_test::test]
+#[tokio::test]
 async fn writes_origin_header() {
     struct Svc;
 
-    #[cfg_attr(not(feature = "current-thread"), tonic::async_trait)]
-    #[cfg_attr(feature = "current-thread", tonic::async_trait(?Send))]
+    #[tonic::async_trait]
     impl test_server::Test for Svc {
         async fn unary_call(
             &self,
@@ -41,12 +31,8 @@ async fn writes_origin_header() {
 
     let (tx, rx) = oneshot::channel::<()>();
 
-    let jh = spawn_task(async move {
-        #[cfg(not(feature = "current-thread"))]
-        let mut builder = Server::builder();
-        #[cfg(feature = "current-thread")]
-        let mut builder = Server::builder().local_executor();
-        builder
+    let jh = tokio::spawn(async move {
+        Server::builder()
             .layer(OriginLayer {})
             .add_service(svc)
             .serve_with_shutdown("127.0.0.1:1442".parse().unwrap(), async { drop(rx.await) })
@@ -90,13 +76,10 @@ struct OriginService<S> {
     inner: S,
 }
 
-macro_rules! define_origin_service {
-($($maybe_send: tt)?) => {
-
 impl<T> Service<Request<tonic::transport::Body>> for OriginService<T>
 where
     T: Service<Request<tonic::transport::Body>>,
-    T::Future: $($maybe_send +)* 'static,
+    T::Future: Send + 'static,
     T::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     type Response = T::Response;
@@ -114,11 +97,3 @@ where
         Box::pin(async move { fut.await.map_err(Into::into) })
     }
 }
-
-}
-}
-
-#[cfg(not(feature = "current-thread"))]
-define_origin_service!(Send);
-#[cfg(feature = "current-thread")]
-define_origin_service!();

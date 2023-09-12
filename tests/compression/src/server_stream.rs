@@ -2,13 +2,7 @@ use super::*;
 use tonic::codec::CompressionEncoding;
 use tonic::Streaming;
 
-#[cfg(not(feature = "current-thread"))]
-use tokio::spawn as spawn_task;
-#[cfg(feature = "current-thread")]
-use tokio::task::spawn_local as spawn_task;
-use tower::builder;
-
-#[tonic_test::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread")]
 async fn client_enabled_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -17,14 +11,10 @@ async fn client_enabled_server_enabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    spawn_task({
+    tokio::spawn({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            #[cfg(not(feature = "current-thread"))]
-            let mut builder = Server::builder();
-            #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().local_executor();
-            builder
+            Server::builder()
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {
@@ -66,7 +56,7 @@ async fn client_enabled_server_enabled() {
     assert!(response_bytes_counter.load(SeqCst) < UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
-#[tonic_test::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread")]
 async fn client_disabled_server_enabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -75,14 +65,10 @@ async fn client_disabled_server_enabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    spawn_task({
+    tokio::spawn({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            #[cfg(not(feature = "current-thread"))]
-            let mut builder = Server::builder();
-            #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().local_executor();
-            builder
+            Server::builder()
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {
@@ -116,7 +102,7 @@ async fn client_disabled_server_enabled() {
     assert!(response_bytes_counter.load(SeqCst) > UNCOMPRESSED_MIN_BODY_SIZE);
 }
 
-#[tonic_test::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread")]
 async fn client_enabled_server_disabled() {
     let (client, server) = tokio::io::duplex(UNCOMPRESSED_MIN_BODY_SIZE * 10);
 
@@ -124,14 +110,10 @@ async fn client_enabled_server_disabled() {
 
     let response_bytes_counter = Arc::new(AtomicUsize::new(0));
 
-    spawn_task({
+    tokio::spawn({
         let response_bytes_counter = response_bytes_counter.clone();
         async move {
-            #[cfg(not(feature = "current-thread"))]
-            let mut builder = Server::builder();
-            #[cfg(feature = "current-thread")]
-            let mut builder = Server::builder().local_executor();
-            builder
+            Server::builder()
                 .layer(
                     ServiceBuilder::new()
                         .layer(MapResponseBodyLayer::new(move |body| {

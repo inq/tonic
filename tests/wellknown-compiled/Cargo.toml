@@ -6,9 +6,7 @@ name = "wellknown-compiled"
 publish = false
 version = "0.1.0"
 
-[features]
-current-thread = []
-default = []
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 doctest = false
