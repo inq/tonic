@@ -541,8 +541,8 @@ where
     I: Stream<Item = Result<IO, IE>> $(+ $maybe_send)* +'static,
     IO: AsyncRead + AsyncWrite + Connected + Unpin + Send + 'static,
     IO::ConnectInfo: Clone + Send + Sync + 'static,
-    IE: Into<crate::Error> + 'static,
-    F: Future<Output = ()> $(+ $maybe_send)* + 'static,
+    IE: Into<crate::Error> + $($maybe_send +)* 'static,
+    F: Future<Output = ()> + $($maybe_send +)* 'static,
     ResBody: http_body::Body<Data = Bytes>,
 {
     type BoxFuture = crate::codegen::$box_future<(), super::Error>;
