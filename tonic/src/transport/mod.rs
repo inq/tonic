@@ -102,7 +102,7 @@ pub use self::service::executor::{TokioExec, LocalExec};
 pub use self::channel::{Channel, Endpoint};
 pub use self::error::Error;
 #[doc(inline)]
-pub use self::server::Server;
+pub use self::server::{Server, LocalServer};
 #[doc(inline)]
 pub use self::service::grpc_timeout::TimeoutExpired;
 pub use self::tls::Certificate;

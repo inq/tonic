@@ -67,6 +67,8 @@ type TraceInterceptor = Arc<dyn Fn(&http::Request<()>) -> tracing::Span + Send +
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 
+pub type LocalServer<L = Identity> = Server<LocalExec, L>;
+
 /// A default batteries included `transport` server.
 ///
 /// This is a wrapper around [`hyper::Server`] and provides an easy builder
@@ -76,7 +78,7 @@ const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 /// reference implementation that should be a good starting point for anyone
 /// wanting to create a more complex and/or specific implementation.
 #[derive(Clone)]
-pub struct Server<Ex, L = Identity> {
+pub struct Server<Ex = TokioExec, L = Identity> {
     trace_interceptor: Option<TraceInterceptor>,
     concurrency_limit: Option<usize>,
     timeout: Option<Duration>,
