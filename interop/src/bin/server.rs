@@ -24,7 +24,6 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     let addr = "127.0.0.1:10000".parse().unwrap();
 
-    #[cfg(not(feature = "current-thread"))]
     let mut builder = Server::builder();
     #[cfg(feature = "current-thread")]
     let mut builder = Server::builder().local_executor();

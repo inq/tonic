@@ -6,7 +6,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use tonic::{codec::DecodeBuf, codec::Decoder, Status, Streaming};
+use tonic::{transport::TokioExec, codec::DecodeBuf, codec::Decoder, Status, Streaming};
 
 macro_rules! bench {
     ($name:ident, $message_size:expr, $chunk_size:expr, $message_count:expr) => {
@@ -22,7 +22,7 @@ macro_rules! bench {
             b.iter(|| {
                 rt.block_on(async {
                     let decoder = MockDecoder::new($message_size);
-                    let mut stream = Streaming::new_request(decoder, body.clone(), None, None);
+                    let mut stream = Streaming::<_, TokioExec>::new_request(decoder, body.clone(), None, None);
 
                     let mut count = 0;
                     while let Some(msg) = stream.message().await.unwrap() {

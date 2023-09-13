@@ -3,13 +3,12 @@ use crate::codec::compression::{
 };
 use crate::codec::encode::{EncodeBody, EncodedBytes};
 use crate::transport::{TokioExec, LocalExec};
-use crate::util::executor::{MaybeSend, BytesBody, MakeBoxBody, BodyExecutor};
+use crate::util::executor::{MaybeSend, MakeBoxBody, BodyExecutor};
 use crate::{
     codec::{encode_server, Codec, Streaming},
     server::{ClientStreamingService, ServerStreamingService, StreamingService, UnaryService},
     Code, Request, Status,
 };
-use bytes::Bytes;
 use http_body::Body;
 use std::fmt;
 use std::marker::PhantomData;
@@ -252,7 +251,6 @@ where
         B: Body + 'static,
         B::Error: Into<crate::Error> + Send,
         Ex: BodyExecutor<B> + MaybeSend<tokio_stream::Once<Result<T::Encode, Status>>>,
-//        Ex: Boxed<tokio_stream::Once<Result<T::Encode, Status>>>,
         Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, Once<std::result::Result<T::Encode, Status>>>>>,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
@@ -409,7 +407,7 @@ where
 
         let (parts, body) = request.into_parts();
 
-        let stream = Streaming::<_, Ex>::new_request(
+        let stream = Streaming::<_, Ex>::new_request_impl(
             self.codec.decoder(),
             body,
             request_compression_encoding,
@@ -444,7 +442,7 @@ where
         let encoding = self.request_encoding_if_supported(&request)?;
 
         let request = request.map(|body| {
-            Streaming::new_request(
+            Streaming::<_, Ex>::new_request_impl(
                 self.codec.decoder(),
                 body,
                 encoding,

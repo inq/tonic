@@ -1,7 +1,7 @@
 use super::compression::{decompress, CompressionEncoding};
 use super::{DecodeBuf, Decoder, DEFAULT_MAX_RECV_MESSAGE_SIZE, HEADER_SIZE};
 use crate::transport::{LocalExec, TokioExec};
-use crate::util::executor::{HasBoxBody, BytesBody, MaybeSend, BodyExecutor};
+use crate::util::executor::{HasBoxBody, BodyExecutor};
 use crate::{metadata::MetadataMap, Code, Status};
 use bytes::{Buf, BufMut, BytesMut, Bytes};
 use http::StatusCode;
@@ -58,6 +58,49 @@ enum Direction {
     EmptyResponse,
 }
 
+impl<T> Streaming<T>
+{
+    #[doc(hidden)]
+    pub fn new_request<B, D>(
+        decoder: D,
+        body: B,
+        encoding: Option<CompressionEncoding>,
+        max_message_size: Option<usize>,
+    ) -> Self
+    where
+        B: Body + Send + 'static,
+        B::Error: Into<crate::Error>,
+        D: Decoder<Item = T, Error = Status> + Send + 'static,
+    {
+        Self::new_request_impl(
+            decoder,
+            body,
+            encoding,
+            max_message_size,
+        )
+    }
+
+    #[doc(hidden)]
+    pub fn new_request_local<B, D>(
+        decoder: D,
+        body: B,
+        encoding: Option<CompressionEncoding>,
+        max_message_size: Option<usize>,
+    ) -> Streaming<T, LocalExec>
+    where
+        B: Body + 'static,
+        B::Error: Into<crate::Error>,
+        D: Decoder<Item = T, Error = Status> + Send + 'static,
+    {
+        Streaming::new_request_impl(
+            decoder,
+            body,
+            encoding,
+            max_message_size,
+        )
+    }
+}
+
 impl<T, Ex> Streaming<T, Ex>
 where
     Ex: HasBoxBody,
@@ -95,7 +138,7 @@ where
     }
 
     #[doc(hidden)]
-    pub fn new_request<B, D>(
+    pub(crate) fn new_request_impl<B, D>(
         decoder: D,
         body: B,
         encoding: Option<CompressionEncoding>,
