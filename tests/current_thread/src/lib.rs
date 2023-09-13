@@ -17,3 +17,22 @@ impl test_server::Test for Svc {
         Ok(Response::new(req.into_inner()))
     }
 }
+
+#[tokio::test]
+async fn test() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = "[::1]:50051".parse().unwrap();
+    let svc = Svc::default();
+
+
+    let server = tonic::transport::Server::builder()
+        .local_executor()
+        .add_service(test_server::TestServer::new(svc))
+        .serve(addr);
+
+    let local = tokio::task::LocalSet::new();
+    local.run_until(async move {
+        tokio::task::spawn_local(server);
+    }).await;
+
+    Ok(())
+}

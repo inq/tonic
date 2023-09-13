@@ -626,6 +626,11 @@ fn generate_server_streaming<T: Method>(
     } else {
         quote!(BoxStream)
     };
+    let grpc_init = if local_executor {
+        quote!(tonic::server::Grpc::new(codec).local_executor())
+    } else {
+        quote!(tonic::server::Grpc::new(codec))
+    };
 
     let (request, response) = method.request_response_name(proto_path, compile_well_known_types);
 
@@ -670,7 +675,7 @@ fn generate_server_streaming<T: Method>(
             let method = #service_ident(inner);
             let codec = #codec_name::default();
 
-            let mut grpc = tonic::server::Grpc::new(codec)
+            let mut grpc = #grpc_init
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings)
                 .apply_max_message_size_config(max_decoding_message_size, max_encoding_message_size);
 
@@ -705,6 +710,11 @@ fn generate_client_streaming<T: Method>(
         quote!(LocalBoxFuture)
     } else {
         quote!(BoxFuture)
+    };
+    let grpc_init = if local_executor {
+        quote!(tonic::server::Grpc::new(codec).local_executor())
+    } else {
+        quote!(tonic::server::Grpc::new(codec))
     };
 
     let inner_arg = if use_arc_self {
@@ -741,7 +751,7 @@ fn generate_client_streaming<T: Method>(
             let method = #service_ident(inner);
             let codec = #codec_name::default();
 
-            let mut grpc = tonic::server::Grpc::new(codec)
+            let mut grpc = #grpc_init
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings)
                 .apply_max_message_size_config(max_decoding_message_size, max_encoding_message_size);
 
@@ -784,6 +794,11 @@ fn generate_streaming<T: Method>(
         quote!(LocalBoxStream)
     } else {
         quote!(BoxStream)
+    };
+    let grpc_init = if local_executor {
+        quote!(tonic::server::Grpc::new(codec).local_executor())
+    } else {
+        quote!(tonic::server::Grpc::new(codec))
     };
 
     let response_stream = if !generate_default_stubs {
@@ -828,7 +843,7 @@ fn generate_streaming<T: Method>(
             let method = #service_ident(inner);
             let codec = #codec_name::default();
 
-            let mut grpc = tonic::server::Grpc::new(codec)
+            let mut grpc = #grpc_init
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings)
                 .apply_max_message_size_config(max_decoding_message_size, max_encoding_message_size);
 
