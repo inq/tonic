@@ -26,7 +26,6 @@ default = ["transport", "prost"]
 prost = ["prost-build"]
 cleanup-markdown = ["prost", "prost-build/cleanup-markdown"]
 transport = []
-current-thread = []
 
 [package.metadata.docs.rs]
 all-features = true

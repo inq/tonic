@@ -22,6 +22,8 @@ const BUFFER_SIZE: usize = 8 * 1024;
 ///
 /// This will wrap some inner [`Body`] and [`Decoder`] and provide an interface
 /// to fetch the message stream and trailing metadata
+pub type LocalStreaming<T> = Streaming<T, LocalExec>;
+
 pub struct Streaming<T, Ex = TokioExec> where Ex: HasBoxBody {
     decoder: Box<dyn Decoder<Item = T, Error = Status> + Send + 'static>,
     inner: StreamingInner<Ex::BoxBody>,
