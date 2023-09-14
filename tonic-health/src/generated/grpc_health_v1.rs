@@ -420,7 +420,7 @@ pub mod health_server {
                                 .status(200)
                                 .header("grpc-status", "12")
                                 .header("content-type", "application/grpc")
-                                .body(tonic::body::empty_body())
+                                .body(empty_body())
                                 .unwrap(),
                         )
                     })
