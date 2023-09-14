@@ -100,7 +100,7 @@ mod tls;
 pub use self::channel::{Channel, Endpoint};
 pub use self::error::Error;
 #[doc(inline)]
-pub use self::server::{Server, LocalServer};
+pub use self::server::{LocalServer, Server};
 #[doc(inline)]
 pub use self::service::grpc_timeout::TimeoutExpired;
 pub use self::tls::Certificate;
@@ -108,7 +108,7 @@ pub use self::tls::Certificate;
 pub use crate::server::NamedService;
 pub use hyper::{Body, Uri};
 
-pub(crate) use self::service::executor::{Executor, TokioExec, LocalExec};
+pub(crate) use self::service::executor::{Executor, LocalExec, TokioExec};
 
 #[cfg(feature = "tls")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tls")))]

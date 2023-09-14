@@ -2,12 +2,9 @@
 //!
 //! See [`Interceptor`] for more details.
 
-use crate::transport::{TokioExec, LocalExec};
-use crate::{
-    request::SanitizeHeaders,
-    Status,
-};
-use crate::util::executor::BytesBody;
+use crate::transport::{LocalExec, TokioExec};
+use crate::util::body::HasBoxedBodyWithMapErr;
+use crate::{request::SanitizeHeaders, Status};
 use bytes::Bytes;
 use pin_project::pin_project;
 use std::marker::PhantomData;
@@ -66,17 +63,24 @@ pub fn interceptor<F>(f: F) -> InterceptorLayerImpl<F, TokioExec>
 where
     F: Interceptor,
 {
-    InterceptorLayerImpl { f, _marker: PhantomData }
+    InterceptorLayerImpl {
+        f,
+        _marker: PhantomData,
+    }
 }
+
+/// A type alias of [`InterceptorLayerImpl`] for normal usage
+pub type InterceptorLayer<F> = InterceptorLayerImpl<F, TokioExec>;
+
+/// A type alias of [`InterceptorLayerImpl`] for thread-local usage
+pub type LocalInterceptorLayer<F> = InterceptorLayerImpl<F, LocalExec>;
 
 /// A gRPC interceptor that can be used as a [`Layer`],
 /// created by calling [`interceptor`].
 ///
 /// See [`Interceptor`] for more details.
-pub type InterceptorLayer<F> = InterceptorLayerImpl<F, TokioExec>;
-pub type LocalInterceptorLayer<F> = InterceptorLayerImpl<F, LocalExec>;
-
 #[derive(Debug, Clone, Copy)]
+#[allow(missing_docs)]
 pub struct InterceptorLayerImpl<F, Ex> {
     f: F,
     _marker: PhantomData<Ex>,
@@ -93,16 +97,15 @@ where
     }
 }
 
-/// A service wrapped in an interceptor middleware.
-///
-/// See [`Interceptor`] for more details.
+/// [`InterceptedServiceImpl`] for normal usage
 pub type InterceptedService<S, F> = InterceptedServiceImpl<S, F, TokioExec>;
 
+/// [`InterceptedServiceImpl`] for thread-local usage
+pub type LocalInterceptedService<S, F> = InterceptedServiceImpl<S, F, LocalExec>;
+
 /// A service wrapped in an interceptor middleware.
 ///
 /// See [`Interceptor`] for more details.
-pub type LocalInterceptedService<S, F> = InterceptedServiceImpl<S, F, LocalExec>;
-
 #[derive(Clone, Copy)]
 pub struct InterceptedServiceImpl<S, F, Ex> {
     inner: S,
@@ -117,7 +120,11 @@ impl<S, F, Ex> InterceptedServiceImpl<S, F, Ex> {
     where
         F: Interceptor,
     {
-        Self { inner: service, f, _marker: PhantomData }
+        Self {
+            inner: service,
+            f,
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -133,9 +140,10 @@ where
     }
 }
 
-impl<S, F, Ex, ReqBody, ResBody> Service<http::Request<ReqBody>> for InterceptedServiceImpl<S, F, Ex>
+impl<S, F, Ex, ReqBody, ResBody> Service<http::Request<ReqBody>>
+    for InterceptedServiceImpl<S, F, Ex>
 where
-    Ex: BytesBody<ResBody>,
+    Ex: HasBoxedBodyWithMapErr<ResBody>,
     ResBody: Default + http_body::Body<Data = Bytes> + 'static,
     F: Interceptor,
     S: Service<http::Request<ReqBody>, Response = http::Response<ResBody>>,
@@ -220,7 +228,7 @@ enum Kind<F> {
 
 impl<F, Ex, E, B> Future for ResponseFuture<F, Ex>
 where
-    Ex: BytesBody<B>,
+    Ex: HasBoxedBodyWithMapErr<B>,
     F: Future<Output = Result<http::Response<B>, E>>,
     E: Into<crate::Error>,
     B: Default + http_body::Body<Data = Bytes> + 'static,
@@ -232,14 +240,14 @@ where
         match self.project().kind.project() {
             KindProj::Future(future) => future
                 .poll(cx)
-                .map(|result| result.map(|res| res.map(Ex::boxed))),
+                .map(|result| result.map(|res| res.map(Ex::boxed_with_map_err))),
             KindProj::Status(status) => {
                 let response = status
                     .take()
                     .unwrap()
-                    .to_http_with_executor::<Ex>()
+                    .to_http_impl::<Ex>()
                     .map(|_| B::default())
-                    .map(Ex::boxed);
+                    .map(Ex::boxed_with_map_err);
                 Poll::Ready(Ok(response))
             }
         }
@@ -293,17 +301,18 @@ mod tests {
             Ok::<_, Status>(http::Response::new(TestBody))
         });
 
-        let svc = InterceptedServiceImpl::<_, _, TokioExec>::new(svc, |request: crate::Request<()>| {
-            assert_eq!(
-                request
-                    .metadata()
-                    .get("user-agent")
-                    .expect("missing in interceptor"),
-                "test-tonic"
-            );
+        let svc =
+            InterceptedServiceImpl::<_, _, TokioExec>::new(svc, |request: crate::Request<()>| {
+                assert_eq!(
+                    request
+                        .metadata()
+                        .get("user-agent")
+                        .expect("missing in interceptor"),
+                    "test-tonic"
+                );
 
-            Ok(request)
-        });
+                Ok(request)
+            });
 
         let request = http::Request::builder()
             .header("user-agent", "test-tonic")

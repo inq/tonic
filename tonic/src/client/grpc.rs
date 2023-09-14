@@ -1,6 +1,6 @@
 use crate::codec::compression::{CompressionEncoding, EnabledCompressionEncodings};
-use crate::transport::{TokioExec, LocalExec};
-use crate::util::executor::BodyExecutor;
+use crate::transport::{LocalExec, TokioExec};
+use crate::util::body::HasBoxedBodyWithMapDataErr;
 use crate::{
     body::BoxBody,
     client::GrpcService,
@@ -36,7 +36,7 @@ pub struct Grpc<T, Ex = TokioExec> {
     _marker: PhantomData<Ex>,
 }
 
-/// A Thread-local version of gRPC client dispatcher.
+/// A type alias of [`Grpc`] for thread-local usage
 pub type LocalGrpc<T> = Grpc<T, LocalExec>;
 
 struct GrpcConfig {
@@ -228,7 +228,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<M2>, Status>
     where
-        Ex: BodyExecutor<T::ResponseBody>,
+        Ex: HasBoxedBodyWithMapDataErr<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -248,7 +248,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<M2>, Status>
     where
-        Ex: BodyExecutor<T::ResponseBody>,
+        Ex: HasBoxedBodyWithMapDataErr<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -286,7 +286,7 @@ impl<T, Ex> Grpc<T, Ex> {
         codec: C,
     ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
-        Ex: BodyExecutor<T::ResponseBody>,
+        Ex: HasBoxedBodyWithMapDataErr<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -306,7 +306,7 @@ impl<T, Ex> Grpc<T, Ex> {
         mut codec: C,
     ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
-        Ex: BodyExecutor<T::ResponseBody>,
+        Ex: HasBoxedBodyWithMapDataErr<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,
@@ -347,7 +347,7 @@ impl<T, Ex> Grpc<T, Ex> {
         response: http::Response<T::ResponseBody>,
     ) -> Result<Response<Streaming<M2, Ex>>, Status>
     where
-        Ex: BodyExecutor<T::ResponseBody>,
+        Ex: HasBoxedBodyWithMapDataErr<T::ResponseBody>,
         T: GrpcService<BoxBody>,
         T::ResponseBody: Body + 'static,
         <T::ResponseBody as Body>::Error: Into<crate::Error>,

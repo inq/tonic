@@ -1,5 +1,5 @@
 use crate::transport::TokioExec;
-use crate::{Request, Response, Status, Streaming, util::executor::HasBoxBody};
+use crate::{util::body::HasEmptyBody, Request, Response, Status, Streaming};
 use std::future::Future;
 use tokio_stream::Stream;
 use tower_service::Service;
@@ -69,7 +69,7 @@ where
 /// automatically implement `ClientStreamingService`.
 pub trait ClientStreamingService<R, Ex = TokioExec>
 where
-    Ex: HasBoxBody,
+    Ex: HasEmptyBody,
 {
     /// Protobuf response message type
     type Response;
@@ -83,7 +83,7 @@ where
 
 impl<T, M1, M2, Ex> ClientStreamingService<M1, Ex> for T
 where
-    Ex: HasBoxBody,
+    Ex: HasEmptyBody,
     T: Service<Request<Streaming<M1, Ex>>, Response = Response<M2>, Error = crate::Status>,
 {
     type Response = M2;
@@ -100,7 +100,7 @@ where
 /// automatically implement `StreamingService`.
 pub trait StreamingService<R, Ex = TokioExec>
 where
-    Ex: HasBoxBody,
+    Ex: HasEmptyBody,
 {
     /// Protobuf response message type
     type Response;
@@ -117,7 +117,7 @@ where
 
 impl<T, S, M1, M2, Ex> StreamingService<M1, Ex> for T
 where
-    Ex: HasBoxBody,
+    Ex: HasEmptyBody,
     T: Service<Request<Streaming<M1, Ex>>, Response = Response<S>, Error = crate::Status>,
     S: Stream<Item = Result<M2, crate::Status>>,
 {

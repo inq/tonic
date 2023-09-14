@@ -85,10 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Grpc server listening on {}", addr);
 
-    Server::builder()
-        .add_routes(routes)
-        .serve(addr)
-        .await?;
+    Server::builder().add_routes(routes).serve(addr).await?;
 
     Ok(())
 }

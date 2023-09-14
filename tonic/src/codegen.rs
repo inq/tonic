@@ -23,3 +23,5 @@ pub type BoxStream<T> =
 pub type LocalBoxFuture<T, E> = self::Pin<Box<dyn self::Future<Output = Result<T, E>> + 'static>>;
 pub type LocalBoxStream<T> =
     self::Pin<Box<dyn tokio_stream::Stream<Item = Result<T, crate::Status>> + 'static>>;
+
+pub use crate::body::{empty_body, local_empty_body};

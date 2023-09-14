@@ -2,8 +2,8 @@ use crate::codec::compression::{
     CompressionEncoding, EnabledCompressionEncodings, SingleMessageCompressionOverride,
 };
 use crate::codec::encode::{EncodeBody, EncodedBytes};
-use crate::transport::{TokioExec, LocalExec};
-use crate::util::executor::{MaybeSend, MakeBoxBody, BodyExecutor};
+use crate::transport::{LocalExec, TokioExec};
+use crate::util::body::{HasBoxedBody, HasBoxedBodyWithMapDataErr, MaybeSend};
 use crate::{
     codec::{encode_server, Codec, Streaming},
     server::{ClientStreamingService, ServerStreamingService, StreamingService, UnaryService},
@@ -12,13 +12,13 @@ use crate::{
 use http_body::Body;
 use std::fmt;
 use std::marker::PhantomData;
-use tokio_stream::{Stream, StreamExt, Once};
+use tokio_stream::{Once, Stream, StreamExt};
 
 macro_rules! t {
     ($result:expr) => {
         match $result {
             Ok(value) => value,
-            Err(status) => return status.to_http_with_executor::<Ex>(),
+            Err(status) => return status.to_http_impl::<Ex>(),
         }
     };
 }
@@ -250,8 +250,11 @@ where
         S: UnaryService<T::Decode, Response = T::Encode>,
         B: Body + 'static,
         B::Error: Into<crate::Error> + Send,
-        Ex: BodyExecutor<B> + MaybeSend<tokio_stream::Once<Result<T::Encode, Status>>>,
-        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, Once<std::result::Result<T::Encode, Status>>>>>,
+        Ex: HasBoxedBodyWithMapDataErr<B>
+            + MaybeSend<tokio_stream::Once<Result<T::Encode, Status>>>,
+        Ex: HasBoxedBody<
+            EncodeBody<EncodedBytes<T::Encoder, Once<std::result::Result<T::Encode, Status>>>>,
+        >,
     {
         let accept_encoding = CompressionEncoding::from_accept_encoding_header(
             req.headers(),
@@ -292,8 +295,8 @@ where
         req: http::Request<B>,
     ) -> http::Response<Ex::BoxBody>
     where
-        Ex: BodyExecutor<B>,
-        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
+        Ex: HasBoxedBodyWithMapDataErr<B>,
+        Ex: HasBoxedBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
         S: ServerStreamingService<T::Decode, Response = T::Encode>,
         S::ResponseStream: 'static,
         B: Body + 'static,
@@ -335,8 +338,8 @@ where
         req: http::Request<B>,
     ) -> http::Response<Ex::BoxBody>
     where
-        Ex: BodyExecutor<B>,
-        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, Once<Result<T::Encode, Status>>>>>,
+        Ex: HasBoxedBodyWithMapDataErr<B>,
+        Ex: HasBoxedBody<EncodeBody<EncodedBytes<T::Encoder, Once<Result<T::Encode, Status>>>>>,
         S: ClientStreamingService<T::Decode, Ex, Response = T::Encode>,
         B: Body + 'static,
         B::Error: Into<crate::Error> + Send + 'static,
@@ -370,8 +373,8 @@ where
         req: http::Request<B>,
     ) -> http::Response<Ex::BoxBody>
     where
-        Ex: BodyExecutor<B> + MaybeSend<S::ResponseStream>,
-        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
+        Ex: HasBoxedBodyWithMapDataErr<B> + MaybeSend<S::ResponseStream>,
+        Ex: HasBoxedBody<EncodeBody<EncodedBytes<T::Encoder, S::ResponseStream>>>,
         S: StreamingService<T::Decode, Ex, Response = T::Encode>,
         S::ResponseStream: 'static,
         B: Body + 'static,
@@ -401,7 +404,7 @@ where
     where
         B: Body + 'static,
         B::Error: Into<crate::Error> + Send,
-        Ex: BodyExecutor<B>,
+        Ex: HasBoxedBodyWithMapDataErr<B>,
     {
         let request_compression_encoding = self.request_encoding_if_supported(&request)?;
 
@@ -435,7 +438,7 @@ where
         request: http::Request<B>,
     ) -> Result<Request<Streaming<T::Decode, Ex>>, Status>
     where
-        Ex: BodyExecutor<B>,
+        Ex: HasBoxedBodyWithMapDataErr<B>,
         B: Body,
         B::Error: Into<crate::Error> + Send,
     {
@@ -461,12 +464,12 @@ where
         max_message_size: Option<usize>,
     ) -> http::Response<Ex::BoxBody>
     where
-        Ex: MakeBoxBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
+        Ex: HasBoxedBody<EncodeBody<EncodedBytes<T::Encoder, B>>>,
         B: Stream<Item = Result<T::Encode, Status>> + 'static,
     {
         let response = match response {
             Ok(r) => r,
-            Err(status) => return status.to_http_with_executor::<Ex>(),
+            Err(status) => return status.to_http_impl::<Ex>(),
         };
 
         let (mut parts, body) = response.into_http().into_parts();
@@ -493,7 +496,7 @@ where
             max_message_size,
         );
 
-        http::Response::from_parts(parts, Ex::make_box_body(body))
+        http::Response::from_parts(parts, Ex::boxed(body))
     }
 
     fn request_encoding_if_supported<B>(

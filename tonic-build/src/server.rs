@@ -27,8 +27,7 @@ pub(crate) fn generate_internal<T: Service>(
         proto_path,
         compile_well_known_types,
         use_arc_self,
-        local_executor
-,
+        local_executor,
         generate_default_stubs,
     );
 
@@ -43,8 +42,7 @@ pub(crate) fn generate_internal<T: Service>(
         server_trait.clone(),
         disable_comments,
         use_arc_self,
-        local_executor
-,
+        local_executor,
         generate_default_stubs,
     );
     let package = if emit_package { service.package() } else { "" };
@@ -204,7 +202,7 @@ pub(crate) fn generate_internal<T: Service>(
                                .status(200)
                                .header("grpc-status", "12")
                                .header("content-type", "application/grpc")
-                               .body(tonic::body::#empty_body_fn())
+                               .body(#empty_body_fn())
                                .unwrap())
                         }),
                     }
@@ -260,8 +258,7 @@ fn generate_trait<T: Service>(
         compile_well_known_types,
         disable_comments,
         use_arc_self,
-        local_executor
-,
+        local_executor,
         generate_default_stubs,
     );
     let trait_doc = generate_doc_comment(format!(
@@ -470,8 +467,7 @@ fn generate_methods<T: Service>(
                 ident,
                 server_trait,
                 use_arc_self,
-                local_executor
-        ,
+                local_executor,
             ),
 
             (false, true) => generate_server_streaming(
@@ -481,8 +477,7 @@ fn generate_methods<T: Service>(
                 ident.clone(),
                 server_trait,
                 use_arc_self,
-                local_executor
-        ,
+                local_executor,
                 generate_default_stubs,
             ),
             (true, false) => generate_client_streaming(
@@ -492,8 +487,7 @@ fn generate_methods<T: Service>(
                 ident.clone(),
                 server_trait,
                 use_arc_self,
-                local_executor
-        ,
+                local_executor,
             ),
 
             (true, true) => generate_streaming(
@@ -503,8 +497,7 @@ fn generate_methods<T: Service>(
                 ident.clone(),
                 server_trait,
                 use_arc_self,
-                local_executor
-        ,
+                local_executor,
                 generate_default_stubs,
             ),
         };

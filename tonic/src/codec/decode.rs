@@ -1,9 +1,9 @@
 use super::compression::{decompress, CompressionEncoding};
 use super::{DecodeBuf, Decoder, DEFAULT_MAX_RECV_MESSAGE_SIZE, HEADER_SIZE};
 use crate::transport::{LocalExec, TokioExec};
-use crate::util::executor::{HasBoxBody, BodyExecutor};
+use crate::util::body::{HasBoxedBodyWithMapDataErr, HasEmptyBody};
 use crate::{metadata::MetadataMap, Code, Status};
-use bytes::{Buf, BufMut, BytesMut, Bytes};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use http::StatusCode;
 use http_body::Body;
 use std::marker::PhantomData;
@@ -22,13 +22,17 @@ const BUFFER_SIZE: usize = 8 * 1024;
 ///
 /// This will wrap some inner [`Body`] and [`Decoder`] and provide an interface
 /// to fetch the message stream and trailing metadata
-pub type LocalStreaming<T> = Streaming<T, LocalExec>;
-
-pub struct Streaming<T, Ex = TokioExec> where Ex: HasBoxBody {
+pub struct Streaming<T, Ex = TokioExec>
+where
+    Ex: HasEmptyBody,
+{
     decoder: Box<dyn Decoder<Item = T, Error = Status> + Send + 'static>,
     inner: StreamingInner<Ex::BoxBody>,
     _maker: PhantomData<Ex>,
 }
+
+/// A thread-local version of [`Streaming`].
+pub type LocalStreaming<T> = Streaming<T, LocalExec>;
 
 struct StreamingInner<B> {
     body: B,
@@ -41,7 +45,7 @@ struct StreamingInner<B> {
     max_message_size: Option<usize>,
 }
 
-impl<T, Ex> Unpin for Streaming<T, Ex> where Ex: HasBoxBody {}
+impl<T, Ex> Unpin for Streaming<T, Ex> where Ex: HasEmptyBody {}
 
 #[derive(Debug, Clone, Copy)]
 enum State {
@@ -60,8 +64,7 @@ enum Direction {
     EmptyResponse,
 }
 
-impl<T> Streaming<T>
-{
+impl<T> Streaming<T> {
     #[doc(hidden)]
     pub fn new_request<B, D>(
         decoder: D,
@@ -74,12 +77,7 @@ impl<T> Streaming<T>
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
     {
-        Self::new_request_impl(
-            decoder,
-            body,
-            encoding,
-            max_message_size,
-        )
+        Self::new_request_impl(decoder, body, encoding, max_message_size)
     }
 
     #[doc(hidden)]
@@ -94,18 +92,13 @@ impl<T> Streaming<T>
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
     {
-        Streaming::new_request_impl(
-            decoder,
-            body,
-            encoding,
-            max_message_size,
-        )
+        Streaming::new_request_impl(decoder, body, encoding, max_message_size)
     }
 }
 
 impl<T, Ex> Streaming<T, Ex>
 where
-    Ex: HasBoxBody,
+    Ex: HasEmptyBody,
 {
     pub(crate) fn new_response<B, D>(
         decoder: D,
@@ -115,7 +108,7 @@ where
         max_message_size: Option<usize>,
     ) -> Self
     where
-        Ex: BodyExecutor<B>,
+        Ex: HasBoxedBodyWithMapDataErr<B>,
         B: Body,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
@@ -131,7 +124,7 @@ where
 
     pub(crate) fn new_empty<B, D>(decoder: D, body: B) -> Self
     where
-        Ex: BodyExecutor<B>,
+        Ex: HasBoxedBodyWithMapDataErr<B>,
         B: Body,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
@@ -147,7 +140,7 @@ where
         max_message_size: Option<usize>,
     ) -> Self
     where
-        Ex: BodyExecutor<B>,
+        Ex: HasBoxedBodyWithMapDataErr<B>,
         B: Body,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
@@ -169,7 +162,7 @@ where
         max_message_size: Option<usize>,
     ) -> Self
     where
-        Ex: BodyExecutor<B>,
+        Ex: HasBoxedBodyWithMapDataErr<B>,
         B: Body,
         B::Error: Into<crate::Error>,
         D: Decoder<Item = T, Error = Status> + Send + 'static,
@@ -177,7 +170,7 @@ where
         Self {
             decoder: Box::new(decoder),
             inner: StreamingInner {
-                body: Ex::copy_to_box_body(body),
+                body: Ex::boxed_with_map_data_err(body),
                 state: State::ReadHeader,
                 direction,
                 buf: BytesMut::with_capacity(BUFFER_SIZE),
@@ -349,7 +342,7 @@ where
 
 impl<T, Ex> Streaming<T, Ex>
 where
-    Ex: HasBoxBody,
+    Ex: HasEmptyBody,
 {
     /// Fetch the next message from this stream.
     ///
@@ -402,8 +395,7 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn trailers(&mut self) -> Result<Option<MetadataMap>, Status>
-    {
+    pub async fn trailers(&mut self) -> Result<Option<MetadataMap>, Status> {
         // Shortcut to see if we already pulled the trailers in the stream step
         // we need to do that so that the stream can error on trailing grpc-status
         if let Some(trailers) = self.inner.trailers.take() {
@@ -444,7 +436,7 @@ where
 
 impl<T, Ex> Stream for Streaming<T, Ex>
 where
-    Ex: HasBoxBody
+    Ex: HasEmptyBody,
 {
     type Item = Result<T, Status>;
 
@@ -476,7 +468,7 @@ where
 
 impl<T, Ex> fmt::Debug for Streaming<T, Ex>
 where
-    Ex: HasBoxBody,
+    Ex: HasEmptyBody,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Streaming").finish()

@@ -3,15 +3,24 @@
 // some combinations of features might cause things here not to be used
 #![allow(dead_code)]
 
-pub mod executor;
+pub(crate) mod body;
 
-use std::task::{Context, Poll};
+use std::{
+    convert::Infallible,
+    future::Future,
+    task::{Context, Poll},
+};
 
-use tower_layer::{LayerFn, layer_fn};
-use tower_service::Service;
+use http::{Request, Response};
+use hyper::Body;
 use tower::ServiceExt;
+use tower_layer::{layer_fn, LayerFn};
+use tower_service::Service;
 
-use crate::codegen::LocalBoxFuture;
+use crate::{
+    body::{BoxBody, LocalBoxBody},
+    codegen::{BoxFuture, LocalBoxFuture},
+};
 
 pub(crate) mod base64 {
     use base64::{
@@ -37,10 +46,55 @@ pub(crate) mod base64 {
     );
 }
 
+/// A trait unifying `BoxCloneService` and `LocalBoxCloneService`.
+pub trait BoxCloneService:
+    Service<Request<Body>, Response = Response<Self::BoxBody>, Future = Self::BoxFuture> + Clone
+{
+    type BoxBody;
+    type BoxFuture: Future<Output = Result<Response<Self::BoxBody>, Infallible>>;
+
+    fn empty_response() -> Self::BoxFuture;
+}
+
+impl BoxCloneService
+    for tower::util::BoxCloneService<Request<Body>, Response<BoxBody>, Infallible>
+{
+    type BoxBody = BoxBody;
+    type BoxFuture = BoxFuture<Response<Self::BoxBody>, Infallible>;
+
+    fn empty_response() -> Self::BoxFuture {
+        Box::pin(async move {
+            Ok(Response::builder()
+                .status(http::StatusCode::OK)
+                .header("grpc-status", "12")
+                .header("content-type", "application/grpc")
+                .body(crate::body::empty_body())
+                .unwrap())
+        })
+    }
+}
+
+impl BoxCloneService
+    for crate::util::LocalBoxCloneService<Request<Body>, Response<LocalBoxBody>, Infallible>
+{
+    type BoxBody = LocalBoxBody;
+    type BoxFuture = LocalBoxFuture<Response<Self::BoxBody>, Infallible>;
+
+    fn empty_response() -> Self::BoxFuture {
+        Box::pin(async move {
+            Ok(Response::builder()
+                .status(http::StatusCode::OK)
+                .header("grpc-status", "12")
+                .header("content-type", "application/grpc")
+                .body(crate::body::local_empty_body())
+                .unwrap())
+        })
+    }
+}
+
+#[allow(missing_docs, missing_debug_implementations)]
 pub struct LocalBoxCloneService<T, U, E>(
-    Box<
-        dyn CloneService<T, Response = U, Error = E, Future = LocalBoxFuture<U, E>>,
-    >,
+    Box<dyn CloneService<T, Response = U, Error = E, Future = LocalBoxFuture<U, E>>>,
 );
 
 impl<T, U, E> LocalBoxCloneService<T, U, E> {

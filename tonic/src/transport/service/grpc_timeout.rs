@@ -66,6 +66,7 @@ where
     }
 }
 
+#[allow(missing_docs, missing_debug_implementations)]
 #[pin_project]
 pub struct ResponseFuture<F> {
     #[pin]

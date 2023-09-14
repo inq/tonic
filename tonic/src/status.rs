@@ -1,5 +1,5 @@
-use crate::transport::{TokioExec, LocalExec};
-use crate::{metadata::MetadataMap, util::executor::HasBoxBody};
+use crate::transport::{LocalExec, TokioExec};
+use crate::{metadata::MetadataMap, util::body::HasEmptyBody};
 use base64::Engine as _;
 use bytes::Bytes;
 use http::header::{HeaderMap, HeaderValue};
@@ -584,21 +584,19 @@ impl Status {
 
     #[allow(clippy::wrong_self_convention)]
     /// Build an `http::Response` from the given `Status`.
-    pub fn to_http(self) -> http::Response<crate::body::BoxBody>
-    {
-        self.to_http_with_executor::<TokioExec>()
+    pub fn to_http(self) -> http::Response<crate::body::BoxBody> {
+        self.to_http_impl::<TokioExec>()
     }
 
     #[allow(clippy::wrong_self_convention)]
-    /// Build an `http::Response` from the given `Status`.
-    pub fn to_http_local(self) -> http::Response<crate::body::LocalBoxBody>
-    {
-        self.to_http_with_executor::<LocalExec>()
+    /// Build an `http::Response` from the given `Status` for thread-local usage
+    pub fn to_http_local(self) -> http::Response<crate::body::LocalBoxBody> {
+        self.to_http_impl::<LocalExec>()
     }
 
-    pub(crate) fn to_http_with_executor<Ex>(self) -> http::Response<Ex::BoxBody>
+    pub(crate) fn to_http_impl<Ex>(self) -> http::Response<Ex::BoxBody>
     where
-        Ex: HasBoxBody,
+        Ex: HasEmptyBody,
     {
         let (mut parts, _body) = http::Response::new(()).into_parts();
 

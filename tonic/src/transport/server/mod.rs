@@ -1,6 +1,7 @@
 //! Server implementation and builder.
 
 mod conn;
+pub(in crate::transport) mod executor;
 mod incoming;
 mod recover_error;
 #[cfg(feature = "tls")]
@@ -9,9 +10,8 @@ mod tls;
 #[cfg(unix)]
 mod unix;
 
-use super::{TokioExec, LocalExec};
-pub use super::service::{Routes, LocalRoutes};
-use super::service::executor::{MakeBoxCloneService, HttpServiceExecutor, HasBoxCloneService, FutureExecutor};
+pub use super::service::{LocalRoutes, Routes};
+use super::{LocalExec, TokioExec};
 
 pub use crate::server::NamedService;
 pub use conn::{Connected, TcpConnectInfo};
@@ -37,11 +37,14 @@ pub(crate) use tokio_rustls::server::TlsStream;
 #[cfg(feature = "tls")]
 use crate::transport::Error;
 
-use self::recover_error::RecoverError;
+use self::{
+    executor::{HasBoxCloneService, HasBoxedCloneService, HttpServiceExecutor, ServeWithShutdown},
+    recover_error::RecoverError,
+};
 use super::service::{GrpcTimeout, ServerIo};
 use bytes::Bytes;
 use http::{Request, Response};
-use hyper::{server::accept, Body};
+use hyper::Body;
 use pin_project::pin_project;
 use std::{
     fmt,
@@ -64,8 +67,6 @@ use tower::{
 };
 
 type TraceInterceptor = Arc<dyn Fn(&http::Request<()>) -> tracing::Span + Send + Sync + 'static>;
-
-const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 
 /// A default batteries included `transport` server.
 ///
@@ -97,11 +98,12 @@ pub struct Server<Ex = TokioExec, L = Identity> {
     exec: Ex,
 }
 
-/// A Thread-local version of [`Server`].
+/// A type alias of [`Server`] for thread-local usage
 pub type LocalServer<L = Identity> = Server<LocalExec, L>;
 
 impl<Ex> Default for Server<Ex>
-    where Ex: Default,
+where
+    Ex: Default,
 {
     fn default() -> Self {
         Self {
@@ -128,13 +130,17 @@ impl<Ex> Default for Server<Ex>
 }
 
 /// A stack based `Service` router.
-pub type LocalRouter<L = Identity> = Router<LocalExec, L>;
-
 #[derive(Debug)]
-pub struct Router<Ex = TokioExec, L = Identity> where Ex: HasBoxCloneService {
+pub struct Router<Ex = TokioExec, L = Identity>
+where
+    Ex: HasBoxCloneService,
+{
     server: Server<Ex, L>,
     routes: Routes<Ex>,
 }
+
+/// A type alias of [`Router`] for thread-local usage
+pub type LocalRouter<L = Identity> = Router<LocalExec, L>;
 
 impl<S: NamedService, T> NamedService for Either<S, T> {
     const NAME: &'static str = S::NAME;
@@ -142,8 +148,7 @@ impl<S: NamedService, T> NamedService for Either<S, T> {
 
 impl Server<TokioExec> {
     /// Create a new server builder that can configure a [`Server`].
-    pub fn builder() -> Self
-    {
+    pub fn builder() -> Self {
         Server {
             tcp_nodelay: true,
             accept_http1: false,
@@ -154,6 +159,7 @@ impl Server<TokioExec> {
 }
 
 impl<L> Server<TokioExec, L> {
+    /// Use thread-local executor.
     pub fn local_executor(self) -> Server<LocalExec, L> {
         Server {
             service_builder: self.service_builder,
@@ -393,7 +399,7 @@ impl<Ex, L> Server<Ex, L> {
     /// route around different services.
     pub fn add_service<S>(&mut self, svc: S) -> Router<Ex, L>
     where
-        Ex: MakeBoxCloneService<S> + Clone,
+        Ex: HasBoxedCloneService<S> + Clone,
         S: Service<Request<Body>> + NamedService,
         S::Error: Into<crate::Error> + Send,
         L: Clone,
@@ -411,7 +417,7 @@ impl<Ex, L> Server<Ex, L> {
     /// As a result, one cannot use this to toggle between two identically named implementations.
     pub fn add_optional_service<S>(&mut self, svc: Option<S>) -> Router<Ex, L>
     where
-        Ex: MakeBoxCloneService<S> + Clone,
+        Ex: HasBoxedCloneService<S> + Clone,
         S: Service<Request<Body>> + NamedService,
         S::Error: Into<crate::Error> + Send,
         L: Clone,
@@ -521,117 +527,18 @@ impl<Ex, L> Server<Ex, L> {
     }
 }
 
-pub trait ServeWithShutdown<L, S, I, F, IO, IE, ResBody>: Sized {
-    type BoxFuture: Future<Output = Result<(), super::Error>>;
-    fn serve_with_shutdown(
-        server: Server<Self, L>,
-        svc: S,
-        incoming: I,
-        signal: Option<F>,
-    ) -> Self::BoxFuture;
-}
-
-macro_rules! define_serve_with_shutdown {
-($exec: ty, $box_future: tt $(, $maybe_send: tt)?) => {
-
-impl<L, S, I, F, IO, IE, ResBody> ServeWithShutdown<L, S, I, F, IO, IE, ResBody> for $exec
+impl<Ex, L> Router<Ex, L>
 where
-    IO: AsyncRead + AsyncWrite + Connected + Unpin + Send + 'static,
-    ResBody: http_body::Body<Data = Bytes> + $($maybe_send +)* 'static,
-    ResBody::Error: Into<crate::Error>,
-    L: Layer<S> $(+ $maybe_send)* + 'static,
-    L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + $($maybe_send +)* 'static,
-    <L::Service as Service<Request<Body>>>::Future:  $($maybe_send +)* 'static,
-    <L::Service as Service<Request<Body>>>::Error: Into<crate::Error> + Send,
-    I: Stream<Item = Result<IO, IE>> $(+ $maybe_send)* +'static,
-    IO: AsyncRead + AsyncWrite + Connected + Unpin + Send + 'static,
-    IO::ConnectInfo: Clone + Send + Sync + 'static,
-    IE: Into<crate::Error> + $($maybe_send +)* 'static,
-    F: Future<Output = ()> + $($maybe_send +)* 'static,
-    ResBody: http_body::Body<Data = Bytes>,
+    Ex: HasBoxCloneService,
 {
-    type BoxFuture = crate::codegen::$box_future<(), super::Error>;
-
-    fn serve_with_shutdown(
-        server: Server<Self, L>,
-        svc: S,
-        incoming: I,
-        signal: Option<F>,
-    ) -> Self::BoxFuture {
-        let trace_interceptor = server.trace_interceptor.clone();
-        let concurrency_limit = server.concurrency_limit;
-        let init_connection_window_size = server.init_connection_window_size;
-        let init_stream_window_size = server.init_stream_window_size;
-        let max_concurrent_streams = server.max_concurrent_streams;
-        let timeout = server.timeout;
-        let max_frame_size = server.max_frame_size;
-        let http2_only = !server.accept_http1;
-
-        let http2_keepalive_interval = server.http2_keepalive_interval;
-        let http2_keepalive_timeout = server
-            .http2_keepalive_timeout
-            .unwrap_or_else(|| Duration::new(DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS, 0));
-        let http2_adaptive_window = server.http2_adaptive_window;
-        let http2_max_pending_accept_reset_streams = server.http2_max_pending_accept_reset_streams;
-
-        let svc = server.service_builder.service(svc);
-        let exec = server.exec.clone();
-
-        let tcp = incoming::tcp_incoming(incoming, server);
-        let incoming = accept::from_stream::<_, _, crate::Error>(tcp);
-
-        let svc = MakeSvc {
-            inner: svc,
-            concurrency_limit,
-            timeout,
-            trace_interceptor,
-            _marker: PhantomData::<(Self, IO)>,
-        };
-
-        let builder = hyper::Server::builder(incoming)
-            .executor(exec)
-            .http2_only(http2_only)
-            .http2_initial_connection_window_size(init_connection_window_size)
-            .http2_initial_stream_window_size(init_stream_window_size)
-            .http2_max_concurrent_streams(max_concurrent_streams)
-            .http2_keep_alive_interval(http2_keepalive_interval)
-            .http2_keep_alive_timeout(http2_keepalive_timeout)
-            .http2_adaptive_window(http2_adaptive_window.unwrap_or_default())
-            .http2_max_pending_accept_reset_streams(http2_max_pending_accept_reset_streams)
-            .http2_max_frame_size(max_frame_size);
-
-        Box::pin(async move {
-            if let Some(signal) = signal {
-                builder
-                    .serve(svc)
-                    .with_graceful_shutdown(signal)
-                    .await
-                    .map_err(super::Error::from_source)?;
-            } else {
-                builder.serve(svc).await.map_err(super::Error::from_source)?;
-            }
-
-            Ok(())
-        })
-    }
-}
-
-}
-}
-
-define_serve_with_shutdown!(TokioExec, BoxFuture, Send);
-define_serve_with_shutdown!(LocalExec, LocalBoxFuture);
-
-impl<Ex, L> Router<Ex, L> where Ex: HasBoxCloneService {
-    pub(crate) fn new(server: Server<Ex, L>, routes: Routes<Ex>) -> Self
-    {
+    pub(crate) fn new(server: Server<Ex, L>, routes: Routes<Ex>) -> Self {
         Self { server, routes }
     }
 
     /// Add a new service to this router.
     pub fn add_service<S>(mut self, svc: S) -> Self
     where
-        Ex: MakeBoxCloneService<S>,
+        Ex: HasBoxedCloneService<S>,
         S: Service<Request<Body>> + NamedService,
         S::Error: Into<crate::Error> + Send,
     {
@@ -647,7 +554,7 @@ impl<Ex, L> Router<Ex, L> where Ex: HasBoxCloneService {
     #[allow(clippy::type_complexity)]
     pub fn add_optional_service<S>(mut self, svc: Option<S>) -> Self
     where
-        Ex: MakeBoxCloneService<S>,
+        Ex: HasBoxedCloneService<S>,
         S: Service<Request<Body>> + NamedService,
         S::Error: Into<crate::Error> + Send,
     {
@@ -658,8 +565,7 @@ impl<Ex, L> Router<Ex, L> where Ex: HasBoxCloneService {
     }
 
     /// Convert this tonic `Router` into a `Service` consuming self.
-    pub fn into_router(self) -> Routes<Ex>
-    {
+    pub fn into_router(self) -> Routes<Ex> {
         self.routes
     }
 
@@ -670,15 +576,22 @@ impl<Ex, L> Router<Ex, L> where Ex: HasBoxCloneService {
     /// [tokio]: https://docs.rs/tokio
     pub async fn serve<ResBody>(self, addr: SocketAddr) -> Result<(), super::Error>
     where
-        Ex: ServeWithShutdown<L, Routes<Ex>, TcpIncoming, future::Ready<()>, AddrStream, std::io::Error, ResBody>,
+        Ex: ServeWithShutdown<
+            L,
+            Routes<Ex>,
+            TcpIncoming,
+            future::Ready<()>,
+            AddrStream,
+            std::io::Error,
+            ResBody,
+        >,
         L: Layer<Routes<Ex>> + Send + 'static,
         L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone,
         ResBody: http_body::Body<Data = Bytes>,
     {
         let incoming = TcpIncoming::new(addr, self.server.tcp_nodelay, self.server.tcp_keepalive)
             .map_err(super::Error::from_source)?;
-        Ex::serve_with_shutdown(self.server, self.routes, incoming, None)
-            .await
+        Ex::serve_with_shutdown(self.server, self.routes, incoming, None).await
     }
 
     /// Consume this [`Server`] creating a future that will execute the server
@@ -701,8 +614,7 @@ impl<Ex, L> Router<Ex, L> where Ex: HasBoxCloneService {
     {
         let incoming = TcpIncoming::new(addr, self.server.tcp_nodelay, self.server.tcp_keepalive)
             .map_err(super::Error::from_source)?;
-        Ex::serve_with_shutdown(self.server, self.routes, incoming, Some(signal))
-            .await
+        Ex::serve_with_shutdown(self.server, self.routes, incoming, Some(signal)).await
     }
 
     /// Consume this [`Server`] creating a future that will execute the server
@@ -752,8 +664,7 @@ impl<Ex, L> Router<Ex, L> where Ex: HasBoxCloneService {
         F: Future<Output = ()> + Send + 'static,
         ResBody: http_body::Body<Data = Bytes>,
     {
-        Ex::serve_with_shutdown(self.server, self.routes, incoming, Some(signal))
-            .await
+        Ex::serve_with_shutdown(self.server, self.routes, incoming, Some(signal)).await
     }
 
     /// Create a tower service out of a router.
@@ -773,6 +684,7 @@ impl<Ex, L> fmt::Debug for Server<Ex, L> {
     }
 }
 
+#[allow(missing_docs, missing_debug_implementations)]
 pub struct Svc<Ex, S, C> {
     inner: S,
     #[cfg(feature = "tls")]
@@ -840,6 +752,7 @@ where
     }
 }
 
+#[allow(missing_docs, missing_debug_implementations)]
 #[pin_project]
 pub struct SvcFuture<Ex, F> {
     #[pin]
@@ -850,7 +763,7 @@ pub struct SvcFuture<Ex, F> {
 
 impl<Ex, F, E, ResBody> Future for SvcFuture<Ex, F>
 where
-    Ex: FutureExecutor<F, ResBody>,
+    Ex: executor::HasBoxedHttpBody<F, ResBody>,
     F: Future<Output = Result<Response<ResBody>, E>>,
     E: Into<crate::Error>,
 {
@@ -861,7 +774,7 @@ where
         let _guard = this.span.enter();
 
         let response: Response<ResBody> = ready!(this.inner.poll(cx)).map_err(Into::into)?;
-        let response = response.map(Ex::box_http_body);
+        let response = response.map(Ex::boxed_http_body);
         Poll::Ready(Ok(response))
     }
 }
@@ -872,6 +785,7 @@ impl<Ex, S, C> fmt::Debug for Svc<Ex, S, C> {
     }
 }
 
+#[allow(missing_docs, missing_debug_implementations)]
 pub struct MakeSvc<Ex, S, IO> {
     concurrency_limit: Option<usize>,
     timeout: Option<Duration>,
@@ -887,7 +801,11 @@ where
     ResBody: http_body::Body<Data = Bytes>,
     IO: Connected,
 {
-    type Response = Svc<Ex, RecoverError<Either<ConcurrencyLimit<GrpcTimeout<S>>, GrpcTimeout<S>>>, IO::ConnectInfo>;
+    type Response = Svc<
+        Ex,
+        RecoverError<Either<ConcurrencyLimit<GrpcTimeout<S>>, GrpcTimeout<S>>>,
+        IO::ConnectInfo,
+    >;
     type Error = crate::Error;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
