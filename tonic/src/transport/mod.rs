@@ -94,8 +94,6 @@ mod error;
 mod service;
 mod tls;
 
-pub use self::service::executor::{TokioExec, LocalExec};
-
 #[doc(inline)]
 #[cfg(feature = "channel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "channel")))]
@@ -110,7 +108,7 @@ pub use self::tls::Certificate;
 pub use crate::server::NamedService;
 pub use hyper::{Body, Uri};
 
-pub(crate) use self::service::executor::Executor;
+pub(crate) use self::service::executor::{Executor, TokioExec, LocalExec};
 
 #[cfg(feature = "tls")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tls")))]
@@ -123,4 +121,3 @@ pub use self::server::ServerTlsConfig;
 pub use self::tls::Identity;
 
 type BoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
-type LocalBoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + 'a>>;

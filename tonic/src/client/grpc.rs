@@ -1,6 +1,6 @@
 use crate::codec::compression::{CompressionEncoding, EnabledCompressionEncodings};
 use crate::transport::{TokioExec, LocalExec};
-use crate::util::executor::{BytesBody, BodyExecutor};
+use crate::util::executor::BodyExecutor;
 use crate::{
     body::BoxBody,
     client::GrpcService,
@@ -35,6 +35,9 @@ pub struct Grpc<T, Ex = TokioExec> {
     config: GrpcConfig,
     _marker: PhantomData<Ex>,
 }
+
+/// A Thread-local version of gRPC client dispatcher.
+pub type LocalGrpc<T> = Grpc<T, LocalExec>;
 
 struct GrpcConfig {
     origin: Uri,
