@@ -127,8 +127,10 @@ impl<Ex> Default for Server<Ex>
 }
 
 /// A stack based `Service` router.
+pub type LocalRouter<L = Identity> = Router<LocalExec, L>;
+
 #[derive(Debug)]
-pub struct Router<Ex, L = Identity> where Ex: HasBoxCloneService {
+pub struct Router<Ex = TokioExec, L = Identity> where Ex: HasBoxCloneService {
     server: Server<Ex, L>,
     routes: Routes<Ex>,
 }
